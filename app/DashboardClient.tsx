@@ -162,8 +162,8 @@ export default function DashboardClient() {
           <div className="bg-gray-800 rounded-xl p-4">
             <h2 className="text-sm font-medium text-gray-300 mb-3">顧客分析</h2>
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-              <MiniKpi label="新規人数" value={`${data.newCustomers.toLocaleString()}人`} />
-              <MiniKpi label="新規 着地予測" value={`${data.newCustomerForecast.toLocaleString()}人`} />
+              <MiniKpi label="新規人数" value={`${data.newCustomers.toLocaleString()}人`} valueColor="text-emerald-400" />
+              <MiniKpi label="新規 着地予測" value={`${data.newCustomerForecast.toLocaleString()}人`} valueColor="text-cyan-400" />
               <MiniKpi label="客単価" value={formatYen(data.avgSpend)} />
               <MiniKpi label="総客数" value={`${data.totalCustomers.toLocaleString()}人`} />
               <MiniKpi label="指名客数" value={`${data.nominated.toLocaleString()}人`} />

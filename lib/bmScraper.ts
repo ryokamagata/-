@@ -210,47 +210,34 @@ function parseVisitorHTML(html: string): VisitorResult {
   const daily = new Map<string, number>()
   const totals = { nominated: 0, free_visit: 0, new_customers: 0, revisit: 0, fixed: 0, re_return: 0 }
 
-  $('table').each((_, table) => {
-    const headerCells = $(table).find('thead th, thead td, tr:first-child th, tr:first-child td')
-    const headers = headerCells.map((__, el) => $(el).text().trim()).get()
+  // BM visitor page uses ROW-BASED layout:
+  // Table 1: 指名件数|549, フリー件数|58, 指名率|90.4%
+  // Table 2: 新規|233, 再来|61, 固定|305, リターン|8, リピート率|60.3%
+  // Each row: <td>metricName</td><td>value</td>
+  const num = (text: string) => parseInt(text.replace(/[^0-9]/g, '')) || 0
 
-    const idx = (name: string) => headers.findIndex(h => h.includes(name))
-    const nominatedIdx = idx('指名件数')
-    const freeIdx = idx('フリー件数')
-    const newIdx = idx('新規')
-    const revisitIdx = idx('再来')
-    const fixedIdx = idx('固定')
-    const reReturnIdx = idx('リターン')
+  const metricMap: Record<string, keyof typeof totals> = {
+    '指名件数': 'nominated',
+    'フリー件数': 'free_visit',
+    '新規': 'new_customers',
+    '再来': 'revisit',
+    '固定': 'fixed',
+    'リターン': 're_return',
+  }
 
-    if (newIdx === -1) return // not the right table
-
-    const num = (cells: string[], i: number) =>
-      i >= 0 && i < cells.length ? (parseInt((cells[i] || '0').replace(/[^0-9]/g, '')) || 0) : 0
-
-    const allRows = $(table).find('tbody tr, tr')
-    allRows.each((__, tr) => {
+  $('table').each((i, table) => {
+    if (i === 0) return // skip form table
+    $(table).find('tr').each((__, tr) => {
       const cells = $(tr).find('td').map((___, td) => $(td).text().trim()).get()
-      if (cells.length <= newIdx) return
-
-      // 合計 row → extract totals
-      if (/合計/.test(cells[0] || '')) {
-        totals.nominated = num(cells, nominatedIdx)
-        totals.free_visit = num(cells, freeIdx)
-        totals.new_customers = num(cells, newIdx)
-        totals.revisit = num(cells, revisitIdx)
-        totals.fixed = num(cells, fixedIdx)
-        totals.re_return = num(cells, reReturnIdx)
-        return
-      }
-
-      // Per-day rows → extract new_customers
-      const dateMatch = cells[0]?.match(/(\d{4}-\d{2}-\d{2})/)
-      if (dateMatch) {
-        daily.set(dateMatch[1], num(cells, newIdx))
+      if (cells.length < 2) return
+      const label = cells[0]
+      const value = cells[1]
+      for (const [keyword, key] of Object.entries(metricMap)) {
+        if (label === keyword) {
+          totals[key] = num(value)
+        }
       }
     })
-
-    if (daily.size > 0 || totals.new_customers > 0) return false // break
   })
 
   return { daily, totals }
@@ -262,29 +249,28 @@ function parseUserHTML(html: string): { totalUsers: number; appMembers: number }
   const $ = cheerio.load(html)
   let totalUsers = 0, appMembers = 0
 
-  $('table').each((_, table) => {
-    const headerCells = $(table).find('thead th, thead td, tr:first-child th, tr:first-child td')
-    const headers = headerCells.map((__, el) => $(el).text().trim()).get()
+  // BM user page: <thead> has 日付, (empty), 顧客数, アプリ会員数, アプリ会員率
+  // Data rows: <th>date</th><th>曜日</th> then <td>顧客数</td><td>アプリ会員数</td><td>アプリ会員率</td>
+  // So <td> cells are: index 0=顧客数, index 1=アプリ会員数
+  // Use first data row (latest cumulative count)
+  const num = (text: string) => parseInt(text.replace(/[^0-9]/g, '')) || 0
 
-    const kokyakuIdx = headers.findIndex(h => h.includes('顧客数'))
-    const appIdx = headers.findIndex(h => h.includes('アプリ会員数'))
-    if (kokyakuIdx === -1) return
+  $('table').each((i, table) => {
+    if (i === 0) return // skip form table
+    const headers = $(table).find('thead th, thead td').map((__, el) => $(el).text().trim()).get()
+    if (!headers.some(h => h.includes('顧客数'))) return
 
-    // Use last data row (latest date)
-    const rows = $(table).find('tbody tr, tr')
-    let lastCells: string[] = []
+    const rows = $(table).find('tbody tr')
     rows.each((__, tr) => {
       const cells = $(tr).find('td').map((___, td) => $(td).text().trim()).get()
-      if (cells.length > kokyakuIdx && cells[0] && !/合計/.test(cells[0])) {
-        lastCells = cells
+      if (cells.length >= 2) {
+        totalUsers = num(cells[0])
+        appMembers = num(cells[1])
+        return false // use first data row
       }
     })
 
-    if (lastCells.length > 0) {
-      totalUsers = parseInt((lastCells[kokyakuIdx] || '0').replace(/[^0-9]/g, '')) || 0
-      appMembers = appIdx >= 0 ? (parseInt((lastCells[appIdx] || '0').replace(/[^0-9]/g, '')) || 0) : 0
-      return false // break
-    }
+    if (totalUsers > 0) return false // break
   })
 
   return { totalUsers, appMembers }
