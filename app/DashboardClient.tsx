@@ -286,7 +286,7 @@ function ForecastCard({ label, value, forecast, color = 'text-white' }: { label:
         <p className={`text-lg font-bold ${color}`}>{value.toLocaleString()}<span className="text-sm">人</span></p>
       </div>
       <div className="flex items-center gap-1.5 mt-1 bg-cyan-950/40 rounded px-2 py-0.5">
-        <span className="text-[10px] text-cyan-300/70">着地</span>
+        <span className="text-[10px] text-cyan-300/70">今月着地予測</span>
         <span className="text-sm font-bold text-cyan-400">{forecast.toLocaleString()}人</span>
       </div>
     </div>
