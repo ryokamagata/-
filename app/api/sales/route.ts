@@ -132,9 +132,14 @@ export async function GET() {
     ? (nominationRates.reduce((s, r) => s + r, 0) / nominationRates.length).toFixed(1)
     : '0'
 
-  // 新規率 = 100% - 指名率（指名+新規で100%になるように）
-  const newCustomerRate = nominationRates.length > 0
+  // フリー率 = 100% - 指名率（指名率+フリー率=100%）
+  const freeRate = nominationRates.length > 0
     ? (100 - parseFloat(nominationRate)).toFixed(1)
+    : '0'
+
+  // 新規率 = 新規人数 / 総客数（実際の新規客比率）
+  const newCustomerRate = totalCustomers > 0
+    ? ((newCustomers / totalCustomers) * 100).toFixed(1)
     : '0'
 
   // リピート分析データ - 新規3ヶ月リターン率（各店舗から取得して平均）
@@ -182,6 +187,7 @@ export async function GET() {
     freeVisit,
     freeVisitForecast,
     nominationRate,
+    freeRate,
     newCustomerRate,
     newReturn3mRate,
     totalUsers,

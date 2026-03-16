@@ -54,7 +54,8 @@ export type DashboardData = {
   freeVisit: number               // 合計フリー客数
   freeVisitForecast: number       // 合計フリー客数 着地予測
   nominationRate: string          // 指名率(%)
-  newCustomerRate: string         // 新規率(%) = 100% - 指名率
+  freeRate: string                // フリー率(%) = 100% - 指名率
+  newCustomerRate: string         // 新規率(%) = 新規人数 / 総客数
   newReturn3mRate: string         // 新規3ヶ月リターン率(%)
   totalUsers: number              // 総顧客数(登録)
   appMembers: number              // アプリ会員数

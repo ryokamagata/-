@@ -189,17 +189,31 @@ export default function DashboardClient() {
             {/* 率・会員 */}
             <div>
               <p className="text-xs text-gray-500 mb-2">比率・会員</p>
-              <div className="grid grid-cols-2 sm:grid-cols-5 gap-3">
+              <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
                 <MiniKpi
                   label="指名率"
                   value={`${data.nominationRate}%`}
                   valueColor={parseFloat(data.nominationRate) >= 85 ? 'text-green-400' : parseFloat(data.nominationRate) >= 70 ? 'text-blue-400' : 'text-yellow-400'}
                 />
                 <MiniKpi
+                  label="フリー率"
+                  value={`${data.freeRate}%`}
+                  sub="指名率+フリー率=100%"
+                  valueColor={parseFloat(data.freeRate) <= 15 ? 'text-green-400' : parseFloat(data.freeRate) <= 30 ? 'text-blue-400' : 'text-yellow-400'}
+                />
+                <MiniKpi
                   label="新規率"
                   value={`${data.newCustomerRate}%`}
+                  sub="新規人数÷総客数"
                   valueColor={parseFloat(data.newCustomerRate) <= 15 ? 'text-green-400' : parseFloat(data.newCustomerRate) <= 30 ? 'text-blue-400' : 'text-yellow-400'}
                 />
+              </div>
+            </div>
+
+            {/* 会員 */}
+            <div>
+              <p className="text-xs text-gray-500 mb-2">会員</p>
+              <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
                 <MiniKpi label="総顧客数" value={`${data.totalUsers.toLocaleString()}人`} />
                 <MiniKpi label="アプリ会員数" value={`${data.appMembers.toLocaleString()}人`} />
                 <MiniKpi
