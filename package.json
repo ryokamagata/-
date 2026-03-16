@@ -8,26 +8,26 @@
     "start": "next start"
   },
   "dependencies": {
-    "next": "14.2.29",
+    "@notionhq/client": "^2.2.15",
+    "better-sqlite3": "^9.4.3",
+    "cheerio": "^1.0.0",
+    "date-fns": "^3.6.0",
+    "encoding-japanese": "^2.2.0",
+    "next": "^14.2.35",
+    "papaparse": "^5.4.1",
     "react": "^18",
     "react-dom": "^18",
-    "@notionhq/client": "^2.2.15",
-    "recharts": "^2.12.7",
-    "better-sqlite3": "^9.4.3",
-    "papaparse": "^5.4.1",
-    "encoding-japanese": "^2.2.0",
-    "date-fns": "^3.6.0",
-    "cheerio": "^1.0.0"
+    "recharts": "^2.12.7"
   },
   "devDependencies": {
+    "@types/better-sqlite3": "^7.6.10",
     "@types/node": "^20",
+    "@types/papaparse": "^5.3.14",
     "@types/react": "^18",
     "@types/react-dom": "^18",
-    "@types/better-sqlite3": "^7.6.10",
-    "@types/papaparse": "^5.3.14",
-    "typescript": "^5",
-    "tailwindcss": "^3.4.1",
+    "autoprefixer": "^10",
     "postcss": "^8",
-    "autoprefixer": "^10"
+    "tailwindcss": "^3.4.1",
+    "typescript": "^5"
   }
 }
