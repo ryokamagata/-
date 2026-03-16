@@ -285,51 +285,61 @@ function parseRepeatHTML(html: string): number {
 
   const parseNum = (text: string) => parseFloat(text.replace(/[^0-9.]/g, '')) || 0
 
-  // BM リピート分析 page has a table with:
-  //   Headers: 再来月 | 新規 | 再来 | 固定 | 全体
-  //   Rows:    翌月  | XX%  | XX%  | XX%  | XX%
-  //            2ヶ月後| XX%  | XX%  | XX%  | XX%
-  //            3ヶ月後| XX%  | XX%  | XX%  | XX%
-  // We want: 新規 column × 3ヶ月後 row
+  // BM リピート分析 table structure (actual):
+  //   Row 0: "2025年09月来店" | "再来店月" | "失客"
+  //   Row 1: "1ヶ月後(10月)" | "2ヶ月後(11月)" | "3ヶ月後(12月)" | ...
+  //   Row 2: "来店区分" | "来店客数" | "構成比" | "客数" | "再来率" | "客数" | "再来率" | ...
+  //   Row 3: "新規" | "377" | "41.1%" | "58" | "15.4%" | "51" | "28.9%" | "28" | "36.3%" | ...
+  //   Row 4: "再来" | ...
+  //   Row 5: "固定" | ...
+  //
+  // We need: 新規 row × 3ヶ月後 column's 再来率
+  // The 3ヶ月後's 再来率 is at a specific column index.
+  // Column layout: [来店区分, 来店客数, 構成比, 1m客数, 1m再来率, 2m客数, 2m再来率, 3m客数, 3m再来率, ...]
+  // So 3ヶ月後の再来率 = index 8 (0-indexed)
 
   $('table').each((i, table) => {
     if (i === 0) return // skip form table
 
-    // Find header row to locate 新規 column
-    const headers: string[] = []
-    const headerRow = $(table).find('thead tr').last()
-    if (headerRow.length) {
-      headerRow.find('th, td').each((_, el) => { headers.push($(el).text().trim()) })
-    }
-    // Fallback: try first row
-    if (headers.length === 0) {
-      const firstRow = $(table).find('tr').first()
-      firstRow.find('th, td').each((_, el) => { headers.push($(el).text().trim()) })
+    const rows: string[][] = []
+    $(table).find('tr').each((_, tr) => {
+      const cells = $(tr).find('td, th').map((__, el) => $(el).text().trim()).get()
+      rows.push(cells)
+    })
+
+    // Look for the header row with month periods to find the 3ヶ月後 column
+    let threeMonthRateCol = -1
+    for (const row of rows) {
+      // Find the row that contains "3ヶ月後" or "3か月後"
+      for (let c = 0; c < row.length; c++) {
+        if (/3[ヶか]月後/.test(row[c])) {
+          // The period headers span 2 data columns each (客数 + 再来率)
+          // Count how many period headers come before this one
+          let periodCount = 0
+          for (let j = 0; j < c; j++) {
+            if (/\d+[ヶか]月後/.test(row[j])) periodCount++
+          }
+          // Column layout: 来店区分(0), 来店客数(1), 構成比(2), then pairs of (客数, 再来率)
+          // 1ヶ月後: cols 3,4 | 2ヶ月後: cols 5,6 | 3ヶ月後: cols 7,8
+          threeMonthRateCol = 3 + (periodCount * 2) + 1 // +1 for 再来率 (not 客数)
+          break
+        }
+      }
+      if (threeMonthRateCol >= 0) break
     }
 
-    // Find column index for 新規
-    let newCol = -1
-    for (let h = 0; h < headers.length; h++) {
-      if (headers[h].includes('新規')) {
-        newCol = h
+    // If we couldn't find via headers, use default position (index 8)
+    if (threeMonthRateCol < 0) threeMonthRateCol = 8
+
+    // Find the 新規 row and extract the 3ヶ月後 再来率
+    for (const row of rows) {
+      if (row.length > threeMonthRateCol && row[0] === '新規') {
+        newReturn3m = parseNum(row[threeMonthRateCol])
         break
       }
     }
-    if (newCol < 0) return // 新規 column not found
 
-    // Find row with 3ヶ月 or 3か月
-    $(table).find('tbody tr, tr').each((_, tr) => {
-      const cells = $(tr).find('td, th').map((__, el) => $(el).text().trim()).get()
-      if (cells.length <= newCol) return
-
-      const rowLabel = cells[0]
-      if (/3[ヶか]月/.test(rowLabel)) {
-        newReturn3m = parseNum(cells[newCol])
-        return false // found it
-      }
-    })
-
-    if (newReturn3m > 0) return false // done
+    if (newReturn3m > 0) return false // found it, stop
   })
 
   return newReturn3m
