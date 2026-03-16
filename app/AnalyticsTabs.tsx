@@ -1,27 +1,14 @@
 'use client'
 
 import { useCallback, useEffect, useState } from 'react'
-import StoreBanner from '@/components/StoreBanner'
 import ScrapeButton from '@/components/ScrapeButton'
-import ReserveAnalysis from '@/components/ReserveAnalysis'
 import SalesAnalysis from '@/components/SalesAnalysis'
-import RepeatAnalysis from '@/components/RepeatAnalysis'
-import StaffAnalysis from '@/components/StaffAnalysis'
-import MenuAnalysis from '@/components/MenuAnalysis'
-import ProductAnalysis from '@/components/ProductAnalysis'
 import GenericAnalysis from '@/components/GenericAnalysis'
 import type { AnalysisType } from '@/lib/analysisTypes'
 
 const TABS: { key: AnalysisType; label: string }[] = [
-  { key: 'reserve', label: '予約' },
   { key: 'account', label: '売上' },
   { key: 'visitor', label: '来店客' },
-  { key: 'unit', label: '客単価' },
-  { key: 'repeat', label: 'リピート' },
-  { key: 'stylist', label: 'スタッフ' },
-  { key: 'menu', label: 'メニュー' },
-  { key: 'product', label: '店販' },
-  { key: 'occupancyrate', label: '稼働率' },
   { key: 'cycle', label: 'サイクル' },
   { key: 'user', label: '顧客' },
 ]
@@ -34,8 +21,7 @@ interface StoreData {
 }
 
 export default function AnalyticsTabs({ year, month }: { year: number; month: number }) {
-  const [activeTab, setActiveTab] = useState<AnalysisType>('reserve')
-  const [storeFilter, setStoreFilter] = useState('all')
+  const [activeTab, setActiveTab] = useState<AnalysisType>('account')
   const [stores, setStores] = useState<StoreData[]>([])
   const [loading, setLoading] = useState(false)
 
@@ -47,7 +33,6 @@ export default function AnalyticsTabs({ year, month }: { year: number; month: nu
         year: String(year),
         month: String(month),
       })
-      if (storeFilter !== 'all') params.set('store', storeFilter)
       const res = await fetch(`/api/analysis?${params}`)
       const json = await res.json()
       setStores(json.stores ?? [])
@@ -56,21 +41,14 @@ export default function AnalyticsTabs({ year, month }: { year: number; month: nu
     } finally {
       setLoading(false)
     }
-  }, [activeTab, year, month, storeFilter])
+  }, [activeTab, year, month])
 
   useEffect(() => {
     fetchData()
   }, [fetchData])
 
-  const filteredStores = storeFilter === 'all'
-    ? stores
-    : stores.filter((s) => s.bm_code === storeFilter)
-
   return (
     <div className="space-y-5">
-      {/* Store banner selector */}
-      <StoreBanner value={storeFilter} onChange={setStoreFilter} />
-
       {/* Scrape button with progress */}
       <ScrapeButton
         url="/api/scrape-analysis"
@@ -99,7 +77,7 @@ export default function AnalyticsTabs({ year, month }: { year: number; month: nu
       {loading ? (
         <div className="text-gray-400 text-base text-center py-10">読み込み中...</div>
       ) : (
-        <AnalysisContent type={activeTab} stores={filteredStores} />
+        <AnalysisContent type={activeTab} stores={stores} />
       )}
     </div>
   )
@@ -116,18 +94,8 @@ function AnalysisContent({
   const data = stores.map((s) => ({ store: s.store, bm_code: s.bm_code, data: s.data as any }))
 
   switch (type) {
-    case 'reserve':
-      return <ReserveAnalysis stores={data} />
     case 'account':
       return <SalesAnalysis stores={data} />
-    case 'repeat':
-      return <RepeatAnalysis stores={data} />
-    case 'stylist':
-      return <StaffAnalysis stores={data} />
-    case 'menu':
-      return <MenuAnalysis stores={data} />
-    case 'product':
-      return <ProductAnalysis stores={data} />
     default: {
       const label = TABS.find((t) => t.key === type)?.label ?? type
       return <GenericAnalysis stores={data} label={label} />

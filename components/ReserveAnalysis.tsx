@@ -54,24 +54,6 @@ export default function ReserveAnalysis({ stores }: { stores: { store: string; d
         <div className="mt-4 text-sm text-gray-400 text-right">合計: {grandTotal}件</div>
       </div>
 
-      {/* Store breakdown */}
-      {stores.length > 1 && (
-        <div className="bg-gray-800 rounded-xl p-5">
-          <h3 className="text-base font-semibold text-gray-200 mb-4">店舗別 予約件数</h3>
-          <div className="space-y-2 max-h-72 overflow-y-auto">
-            {stores.map((s) => {
-              const chs = Array.isArray(s.data?.channels) ? s.data.channels : []
-              const total = chs.reduce((sum: number, ch: { count: number }) => sum + ch.count, 0)
-              return (
-                <div key={s.store} className="flex items-center gap-3 text-sm">
-                  <span className="text-gray-200 truncate flex-1">{s.store}</span>
-                  <span className="text-gray-400 shrink-0 font-medium">{total}件</span>
-                </div>
-              )
-            })}
-          </div>
-        </div>
-      )}
     </div>
   )
 }

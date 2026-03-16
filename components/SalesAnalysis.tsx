@@ -51,36 +51,6 @@ export default function SalesAnalysis({ stores }: { stores: { store: string; dat
         <Kpi label="総売上" value={`¥${agg.totalSales.toLocaleString()}`} />
       </div>
 
-      {/* Store breakdown */}
-      {stores.length > 1 && (
-        <div className="bg-gray-800 rounded-xl p-5">
-          <h3 className="text-base font-semibold text-gray-200 mb-4">店舗別 売上</h3>
-          <div className="space-y-3">
-            {stores
-              .sort((a, b) => (b.data?.summary?.pureSales || 0) - (a.data?.summary?.pureSales || 0))
-              .map((s) => {
-                const ps = s.data?.summary?.pureSales || 0
-                const pct = agg.pureSales > 0 ? (ps / agg.pureSales) * 100 : 0
-                return (
-                  <div key={s.store}>
-                    <div className="flex justify-between text-sm mb-1.5">
-                      <span className="text-gray-200 truncate max-w-[55%]">{s.store}</span>
-                      <span className="text-gray-400">
-                        ¥{ps.toLocaleString()} ({pct.toFixed(1)}%)
-                      </span>
-                    </div>
-                    <div className="h-3 bg-gray-700 rounded-full overflow-hidden">
-                      <div
-                        className="h-full rounded-full bg-blue-500 transition-all duration-500"
-                        style={{ width: `${pct}%` }}
-                      />
-                    </div>
-                  </div>
-                )
-              })}
-          </div>
-        </div>
-      )}
     </div>
   )
 }
