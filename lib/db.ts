@@ -255,10 +255,13 @@ export function getLastScrapeTime(): string | null {
 
 export function logScrape(storesScraped: number, recordsStored: number, error?: string): void {
   const db = getDB()
-  db.prepare('INSERT INTO scrape_log(stores_scraped, records_stored, error) VALUES(?,?,?)').run(
+  const jstNow = new Date(new Date().toLocaleString('en-US', { timeZone: 'Asia/Tokyo' }))
+  const scraped_at = `${jstNow.getFullYear()}-${String(jstNow.getMonth() + 1).padStart(2, '0')}-${String(jstNow.getDate()).padStart(2, '0')}T${String(jstNow.getHours()).padStart(2, '0')}:${String(jstNow.getMinutes()).padStart(2, '0')}:${String(jstNow.getSeconds()).padStart(2, '0')}`
+  db.prepare('INSERT INTO scrape_log(stores_scraped, records_stored, error, scraped_at) VALUES(?,?,?,?)').run(
     storesScraped,
     recordsStored,
-    error ?? null
+    error ?? null,
+    scraped_at
   )
 }
 
