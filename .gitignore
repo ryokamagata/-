@@ -1,0 +1,15 @@
+# Next.js
+.next/
+out/
+node_modules/
+
+# DB（ローカル開発用）
+data/*.db
+
+# 環境変数
+.env
+.env.local
+.env*.local
+
+# OS
+.DS_Store
