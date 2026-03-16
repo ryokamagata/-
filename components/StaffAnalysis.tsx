@@ -31,31 +31,31 @@ export default function StaffAnalysis({ stores }: { stores: { store: string; dat
   const maxSales = allStaff.length > 0 ? allStaff[0].sales : 1
 
   return (
-    <div className="bg-gray-800 rounded-xl p-4">
-      <h3 className="text-sm font-medium text-gray-300 mb-3">スタッフ別 パフォーマンス</h3>
-      <div className="space-y-1.5 max-h-96 overflow-y-auto pr-1">
+    <div className="bg-gray-800 rounded-xl p-5">
+      <h3 className="text-base font-semibold text-gray-200 mb-4">スタッフ別 パフォーマンス</h3>
+      <div className="space-y-2.5 max-h-[500px] overflow-y-auto pr-1">
         {allStaff.slice(0, 30).map((st, i) => {
           const pct = maxSales > 0 ? (st.sales / maxSales) * 100 : 0
           const avgSpend = st.customers > 0 ? Math.round(st.sales / st.customers) : 0
           return (
-            <div key={`${st.store}-${st.name}`} className="flex items-center gap-2 text-xs">
-              <span className="text-gray-500 w-5 text-right shrink-0">{i + 1}</span>
+            <div key={`${st.store}-${st.name}`} className="flex items-center gap-3 text-sm">
+              <span className="text-gray-500 w-6 text-right shrink-0 font-medium">{i + 1}</span>
               <div className="flex-1 min-w-0">
-                <span className="text-gray-300 truncate block">{st.name}</span>
+                <span className="text-gray-200 truncate block font-medium">{st.name}</span>
                 {stores.length > 1 && (
-                  <span className="text-gray-600 text-[10px] truncate block">{st.store}</span>
+                  <span className="text-gray-500 text-xs truncate block">{st.store}</span>
                 )}
               </div>
-              <span className="text-gray-400 shrink-0 text-right w-20">
+              <span className="text-gray-300 shrink-0 text-right w-24 font-medium">
                 ¥{st.sales.toLocaleString()}
               </span>
-              <span className="text-gray-500 shrink-0 text-right w-12">
+              <span className="text-gray-400 shrink-0 text-right w-14">
                 {st.customers}人
               </span>
-              <span className="text-gray-500 shrink-0 text-right w-16">
+              <span className="text-gray-400 shrink-0 text-right w-20">
                 @¥{avgSpend.toLocaleString()}
               </span>
-              <div className="w-16 h-1.5 bg-gray-700 rounded-full overflow-hidden shrink-0">
+              <div className="w-20 h-2 bg-gray-700 rounded-full overflow-hidden shrink-0">
                 <div
                   className="h-full bg-blue-500 rounded-full"
                   style={{ width: `${pct}%` }}
@@ -65,7 +65,7 @@ export default function StaffAnalysis({ stores }: { stores: { store: string; dat
           )
         })}
         {allStaff.length > 30 && (
-          <p className="text-gray-600 text-xs text-center pt-1">他 {allStaff.length - 30} 名</p>
+          <p className="text-gray-500 text-sm text-center pt-2">他 {allStaff.length - 30} 名</p>
         )}
       </div>
     </div>
@@ -73,5 +73,5 @@ export default function StaffAnalysis({ stores }: { stores: { store: string; dat
 }
 
 function Empty() {
-  return <p className="text-gray-500 text-sm text-center py-8">スタッフ分析データがありません。BM同期を実行してください。</p>
+  return <p className="text-gray-500 text-base text-center py-10">スタッフ分析データがありません。BM同期を実行してください。</p>
 }

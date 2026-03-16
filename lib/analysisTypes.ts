@@ -2,7 +2,7 @@
 
 export const ANALYSIS_TYPES = [
   'reserve', 'visitor', 'unit', 'user', 'repeat', 'cycle',
-  'occupancyrate', 'dp', 'account', 'stylist', 'menu', 'product',
+  'occupancyrate', 'account', 'stylist', 'menu', 'product',
 ] as const
 
 export type AnalysisType = typeof ANALYSIS_TYPES[number]
@@ -15,7 +15,6 @@ export const ANALYSIS_LABELS: Record<AnalysisType, string> = {
   repeat: 'リピート分析',
   cycle: 'サイクル分析',
   occupancyrate: '稼働率',
-  dp: 'DP分析',
   account: '売上分析',
   stylist: 'スタッフ分析',
   menu: 'メニュー分析',

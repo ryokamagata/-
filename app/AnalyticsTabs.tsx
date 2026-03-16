@@ -1,7 +1,7 @@
 'use client'
 
 import { useCallback, useEffect, useState } from 'react'
-import StoreFilter from '@/components/StoreFilter'
+import StoreBanner from '@/components/StoreBanner'
 import ScrapeButton from '@/components/ScrapeButton'
 import ReserveAnalysis from '@/components/ReserveAnalysis'
 import SalesAnalysis from '@/components/SalesAnalysis'
@@ -24,7 +24,6 @@ const TABS: { key: AnalysisType; label: string }[] = [
   { key: 'occupancyrate', label: '稼働率' },
   { key: 'cycle', label: 'サイクル' },
   { key: 'user', label: '顧客' },
-  { key: 'dp', label: 'DP' },
 ]
 
 interface StoreData {
@@ -68,11 +67,9 @@ export default function AnalyticsTabs({ year, month }: { year: number; month: nu
     : stores.filter((s) => s.bm_code === storeFilter)
 
   return (
-    <div className="space-y-4">
-      {/* Controls */}
-      <div className="flex flex-wrap items-center gap-3">
-        <StoreFilter value={storeFilter} onChange={setStoreFilter} />
-      </div>
+    <div className="space-y-5">
+      {/* Store banner selector */}
+      <StoreBanner value={storeFilter} onChange={setStoreFilter} />
 
       {/* Scrape button with progress */}
       <ScrapeButton
@@ -82,12 +79,12 @@ export default function AnalyticsTabs({ year, month }: { year: number; month: nu
       />
 
       {/* Tab bar */}
-      <div className="flex flex-wrap gap-1">
+      <div className="flex flex-wrap gap-1.5">
         {TABS.map((tab) => (
           <button
             key={tab.key}
             onClick={() => setActiveTab(tab.key)}
-            className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${
+            className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
               activeTab === tab.key
                 ? 'bg-blue-600 text-white'
                 : 'bg-gray-700 text-gray-400 hover:text-gray-200 hover:bg-gray-600'
@@ -100,7 +97,7 @@ export default function AnalyticsTabs({ year, month }: { year: number; month: nu
 
       {/* Content */}
       {loading ? (
-        <div className="text-gray-400 text-sm text-center py-8">読み込み中...</div>
+        <div className="text-gray-400 text-base text-center py-10">読み込み中...</div>
       ) : (
         <AnalysisContent type={activeTab} stores={filteredStores} />
       )}

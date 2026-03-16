@@ -110,7 +110,7 @@ export default function ScrapeButton({
         <button
           onClick={handleScrape}
           disabled={scraping}
-          className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
+          className={`px-5 py-2.5 rounded-lg text-sm font-medium transition-colors ${
             scraping
               ? 'bg-gray-600 text-gray-400 cursor-not-allowed'
               : 'bg-blue-600 hover:bg-blue-500 text-white'
@@ -119,7 +119,7 @@ export default function ScrapeButton({
           {scraping ? '同期中...' : label}
         </button>
         {result && (
-          <span className={`text-xs ${isError ? 'text-red-400' : 'text-green-400'}`}>
+          <span className={`text-sm ${isError ? 'text-red-400' : 'text-green-400'}`}>
             {result}
           </span>
         )}
@@ -127,17 +127,17 @@ export default function ScrapeButton({
 
       {/* Progress bar */}
       {scraping && progress && (
-        <div className="space-y-1">
+        <div className="space-y-1.5">
           <div className="flex items-center gap-2">
-            <div className="flex-1 h-2 bg-gray-700 rounded-full overflow-hidden">
+            <div className="flex-1 h-3 bg-gray-700 rounded-full overflow-hidden">
               <div
                 className="h-full bg-blue-500 rounded-full transition-all duration-300"
                 style={{ width: `${pct}%` }}
               />
             </div>
-            <span className="text-xs text-gray-400 w-10 text-right shrink-0">{pct}%</span>
+            <span className="text-sm text-gray-300 w-12 text-right shrink-0 font-medium">{pct}%</span>
           </div>
-          <p className="text-xs text-gray-500">
+          <p className="text-sm text-gray-400">
             {progress.phase === 'login' ? (
               'BMにログイン中...'
             ) : progress.phase === 'done' ? (
@@ -146,7 +146,7 @@ export default function ScrapeButton({
               <>
                 {progress.current}/{progress.total}
                 {progress.storeName && (
-                  <span className="text-gray-400 ml-1">- {progress.storeName}</span>
+                  <span className="text-gray-300 ml-1">- {progress.storeName}</span>
                 )}
               </>
             )}
@@ -156,7 +156,7 @@ export default function ScrapeButton({
 
       {/* Waiting spinner before first progress */}
       {scraping && !progress && (
-        <p className="text-xs text-gray-500">接続中...</p>
+        <p className="text-sm text-gray-400">接続中...</p>
       )}
     </div>
   )

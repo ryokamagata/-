@@ -53,9 +53,9 @@ export default function SalesAnalysis({ stores }: { stores: { store: string; dat
 
       {/* Store breakdown */}
       {stores.length > 1 && (
-        <div className="bg-gray-800 rounded-xl p-4">
-          <h3 className="text-sm font-medium text-gray-300 mb-3">店舗別 売上</h3>
-          <div className="space-y-2">
+        <div className="bg-gray-800 rounded-xl p-5">
+          <h3 className="text-base font-semibold text-gray-200 mb-4">店舗別 売上</h3>
+          <div className="space-y-3">
             {stores
               .sort((a, b) => (b.data?.summary?.pureSales || 0) - (a.data?.summary?.pureSales || 0))
               .map((s) => {
@@ -63,13 +63,13 @@ export default function SalesAnalysis({ stores }: { stores: { store: string; dat
                 const pct = agg.pureSales > 0 ? (ps / agg.pureSales) * 100 : 0
                 return (
                   <div key={s.store}>
-                    <div className="flex justify-between text-xs mb-1">
-                      <span className="text-gray-300 truncate max-w-[55%]">{s.store}</span>
+                    <div className="flex justify-between text-sm mb-1.5">
+                      <span className="text-gray-200 truncate max-w-[55%]">{s.store}</span>
                       <span className="text-gray-400">
                         ¥{ps.toLocaleString()} ({pct.toFixed(1)}%)
                       </span>
                     </div>
-                    <div className="h-2 bg-gray-700 rounded-full overflow-hidden">
+                    <div className="h-3 bg-gray-700 rounded-full overflow-hidden">
                       <div
                         className="h-full rounded-full bg-blue-500 transition-all duration-500"
                         style={{ width: `${pct}%` }}
@@ -87,13 +87,13 @@ export default function SalesAnalysis({ stores }: { stores: { store: string; dat
 
 function Kpi({ label, value }: { label: string; value: string }) {
   return (
-    <div className="bg-gray-800 rounded-xl p-3">
-      <p className="text-xs text-gray-400 mb-0.5">{label}</p>
-      <p className="text-lg font-bold text-white">{value}</p>
+    <div className="bg-gray-800 rounded-xl p-4">
+      <p className="text-sm text-gray-400 mb-1">{label}</p>
+      <p className="text-xl font-bold text-white">{value}</p>
     </div>
   )
 }
 
 function Empty() {
-  return <p className="text-gray-500 text-sm text-center py-8">売上分析データがありません。BM同期を実行してください。</p>
+  return <p className="text-gray-500 text-base text-center py-10">売上分析データがありません。BM同期を実行してください。</p>
 }
