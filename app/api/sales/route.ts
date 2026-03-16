@@ -6,8 +6,8 @@ import {
   getSalesForMonth,
   getTarget,
   getLastScrapeTime,
-  getMonthlyVisitors,
-  getMonthlyUsers,
+  getPerStoreVisitors,
+  getPerStoreUsers,
 } from '@/lib/db'
 import { computeForecast } from '@/lib/forecastEngine'
 import type { DailySales, DashboardData } from '@/lib/types'
@@ -104,33 +104,46 @@ export async function GET() {
   const totalCustomers = dailySales.reduce((s, d) => s + d.customers, 0)
   const avgSpend = totalCustomers > 0 ? Math.round(forecast.actualTotal / totalCustomers) : 0
 
-  // 新規人数 (per-day data for forecast)
-  const newCustomers = dailySales.reduce((s, d) => s + (d.newCustomers ?? 0), 0)
+  // 来店客分析データ (visitor) - 全店舗の個別データ取得
+  const visitorStores = getPerStoreVisitors(year, month)
+
+  // 合計値（人数は全店舗合計）
+  const nominated = visitorStores.reduce((s, v) => s + v.nominated, 0)
+  const freeVisit = visitorStores.reduce((s, v) => s + v.free_visit, 0)
+  const newCustomers = visitorStores.reduce((s, v) => s + v.new_customers, 0)
+
+  // 新規着地予測
   const effectiveDays = Math.max(today, 1)
   const newCustomerForecast = effectiveDays > 0
     ? Math.round((newCustomers / effectiveDays) * daysInMonth)
     : 0
 
-  // 来店客分析データ (visitor)
-  const visitors = getMonthlyVisitors(year, month)
-  const nominated = visitors?.nominated ?? 0
-  const freeVisit = visitors?.free_visit ?? 0
-  const visitorTotal = nominated + freeVisit
-  const nominationRate = visitorTotal > 0 ? ((nominated / visitorTotal) * 100).toFixed(1) : '0'
-  const revisit = visitors?.revisit ?? 0
-  const fixed = visitors?.fixed ?? 0
-  const reReturn = visitors?.re_return ?? 0
-  const repeatTotal = revisit + fixed + reReturn
-  const visitorNew = visitors?.new_customers ?? 0
-  const repeatRate = (visitorNew + repeatTotal) > 0
-    ? ((repeatTotal / (visitorNew + repeatTotal)) * 100).toFixed(1)
+  // 率は全店舗の単純平均
+  const nominationRates = visitorStores
+    .filter(v => (v.nominated + v.free_visit) > 0)
+    .map(v => (v.nominated / (v.nominated + v.free_visit)) * 100)
+  const nominationRate = nominationRates.length > 0
+    ? (nominationRates.reduce((s, r) => s + r, 0) / nominationRates.length).toFixed(1)
     : '0'
 
-  // 顧客データ (user)
-  const users = getMonthlyUsers(year, month)
-  const totalUsers = users?.total_users ?? 0
-  const appMembers = users?.app_members ?? 0
-  const appMemberRate = totalUsers > 0 ? ((appMembers / totalUsers) * 100).toFixed(1) : '0'
+  const repeatRates = visitorStores
+    .filter(v => (v.new_customers + v.revisit + v.fixed + v.re_return) > 0)
+    .map(v => ((v.revisit + v.fixed + v.re_return) / (v.new_customers + v.revisit + v.fixed + v.re_return)) * 100)
+  const repeatRate = repeatRates.length > 0
+    ? (repeatRates.reduce((s, r) => s + r, 0) / repeatRates.length).toFixed(1)
+    : '0'
+
+  // 顧客データ (user) - 全店舗の個別データ取得
+  const userStores = getPerStoreUsers(year, month)
+  const totalUsers = userStores.reduce((s, u) => s + u.total_users, 0)
+  const appMembers = userStores.reduce((s, u) => s + u.app_members, 0)
+
+  const appMemberRates = userStores
+    .filter(u => u.total_users > 0)
+    .map(u => (u.app_members / u.total_users) * 100)
+  const appMemberRate = appMemberRates.length > 0
+    ? (appMemberRates.reduce((s, r) => s + r, 0) / appMemberRates.length).toFixed(1)
+    : '0'
 
   const response: DashboardData = {
     year,

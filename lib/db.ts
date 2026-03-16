@@ -277,6 +277,17 @@ export function getMonthlyVisitors(year: number, month: number) {
   } | undefined
 }
 
+export function getPerStoreVisitors(year: number, month: number) {
+  const db = getDB()
+  return db.prepare(
+    `SELECT store, bm_code, nominated, free_visit, new_customers, revisit, fixed, re_return
+     FROM store_monthly_visitors WHERE year=? AND month=?`
+  ).all(year, month) as {
+    store: string; bm_code: string; nominated: number; free_visit: number
+    new_customers: number; revisit: number; fixed: number; re_return: number
+  }[]
+}
+
 export function upsertMonthlyUsers(
   year: number, month: number, store: string, bmCode: string,
   totalUsers: number, appMembers: number
@@ -297,6 +308,14 @@ export function getMonthlyUsers(year: number, month: number) {
     `SELECT SUM(total_users) as total_users, SUM(app_members) as app_members
      FROM store_monthly_users WHERE year=? AND month=?`
   ).get(year, month) as { total_users: number; app_members: number } | undefined
+}
+
+export function getPerStoreUsers(year: number, month: number) {
+  const db = getDB()
+  return db.prepare(
+    `SELECT store, bm_code, total_users, app_members
+     FROM store_monthly_users WHERE year=? AND month=?`
+  ).all(year, month) as { store: string; bm_code: string; total_users: number; app_members: number }[]
 }
 
 // ─── CSV import functions ────────────────────────────────────────────────────
