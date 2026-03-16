@@ -159,37 +159,55 @@ export default function DashboardClient() {
           </div>
 
           {/* 顧客KPI */}
-          <div className="bg-gray-800 rounded-xl p-4">
-            <h2 className="text-sm font-medium text-gray-300 mb-3">全店舗 顧客分析</h2>
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-              <MiniKpi label="合計新規人数" value={`${data.newCustomers.toLocaleString()}人`} valueColor="text-emerald-400" />
-              <MiniKpi label="合計新規 着地予測" value={`${data.newCustomerForecast.toLocaleString()}人`} valueColor="text-cyan-400" />
-              <MiniKpi label="今月客単価" value={formatYen(data.avgSpend)} />
-              <MiniKpiWithForecast label="合計総客数" value={data.totalCustomers} forecast={data.customerForecast} />
-              <MiniKpiWithForecast label="合計指名客数" value={data.nominated} forecast={data.nominatedForecast} />
-              <MiniKpiWithForecast label="合計フリー客数" value={data.freeVisit} forecast={data.freeVisitForecast} />
-              <MiniKpi
-                label="指名率"
-                value={`${data.nominationRate}%`}
-                valueColor={parseFloat(data.nominationRate) >= 85 ? 'text-green-400' : parseFloat(data.nominationRate) >= 70 ? 'text-blue-400' : 'text-yellow-400'}
-              />
-              <MiniKpi
-                label="新規率"
-                value={`${data.newCustomerRate}%`}
-                valueColor={parseFloat(data.newCustomerRate) <= 15 ? 'text-green-400' : parseFloat(data.newCustomerRate) <= 30 ? 'text-blue-400' : 'text-yellow-400'}
-              />
-              <MiniKpi
-                label="新規3ヶ月リターン率"
-                value={data.newReturn3mRate === '—' ? '—' : `${data.newReturn3mRate}%`}
-                valueColor={data.newReturn3mRate !== '—' && parseFloat(data.newReturn3mRate) >= 40 ? 'text-green-400' : data.newReturn3mRate !== '—' && parseFloat(data.newReturn3mRate) >= 20 ? 'text-blue-400' : 'text-yellow-400'}
-              />
-              <MiniKpi label="総顧客数" value={`${data.totalUsers.toLocaleString()}人`} />
-              <MiniKpi label="アプリ会員数" value={`${data.appMembers.toLocaleString()}人`} />
-              <MiniKpi
-                label="アプリ会員率"
-                value={`${data.appMemberRate}%`}
-                valueColor={parseFloat(data.appMemberRate) >= 50 ? 'text-green-400' : parseFloat(data.appMemberRate) >= 30 ? 'text-blue-400' : 'text-yellow-400'}
-              />
+          <div className="bg-gray-800 rounded-xl p-4 space-y-4">
+            <h2 className="text-sm font-medium text-gray-300">全店舗 顧客分析</h2>
+
+            {/* 来店客数（実績 → 着地予測） */}
+            <div>
+              <p className="text-xs text-gray-500 mb-2">来店客数</p>
+              <div className="grid grid-cols-3 gap-3">
+                <ForecastCard label="合計総客数" value={data.totalCustomers} forecast={data.customerForecast} />
+                <ForecastCard label="合計指名客数" value={data.nominated} forecast={data.nominatedForecast} />
+                <ForecastCard label="合計フリー客数" value={data.freeVisit} forecast={data.freeVisitForecast} />
+              </div>
+            </div>
+
+            {/* 新規・単価 */}
+            <div>
+              <p className="text-xs text-gray-500 mb-2">新規・単価</p>
+              <div className="grid grid-cols-3 gap-3">
+                <ForecastCard label="合計新規人数" value={data.newCustomers} forecast={data.newCustomerForecast} color="text-emerald-400" />
+                <MiniKpi label="今月客単価" value={formatYen(data.avgSpend)} />
+                <MiniKpi
+                  label="新規3ヶ月リターン率"
+                  value={data.newReturn3mRate === '—' ? '—' : `${data.newReturn3mRate}%`}
+                  valueColor={data.newReturn3mRate !== '—' && parseFloat(data.newReturn3mRate) >= 40 ? 'text-green-400' : data.newReturn3mRate !== '—' && parseFloat(data.newReturn3mRate) >= 20 ? 'text-blue-400' : 'text-yellow-400'}
+                />
+              </div>
+            </div>
+
+            {/* 率・会員 */}
+            <div>
+              <p className="text-xs text-gray-500 mb-2">比率・会員</p>
+              <div className="grid grid-cols-2 sm:grid-cols-5 gap-3">
+                <MiniKpi
+                  label="指名率"
+                  value={`${data.nominationRate}%`}
+                  valueColor={parseFloat(data.nominationRate) >= 85 ? 'text-green-400' : parseFloat(data.nominationRate) >= 70 ? 'text-blue-400' : 'text-yellow-400'}
+                />
+                <MiniKpi
+                  label="新規率"
+                  value={`${data.newCustomerRate}%`}
+                  valueColor={parseFloat(data.newCustomerRate) <= 15 ? 'text-green-400' : parseFloat(data.newCustomerRate) <= 30 ? 'text-blue-400' : 'text-yellow-400'}
+                />
+                <MiniKpi label="総顧客数" value={`${data.totalUsers.toLocaleString()}人`} />
+                <MiniKpi label="アプリ会員数" value={`${data.appMembers.toLocaleString()}人`} />
+                <MiniKpi
+                  label="アプリ会員率"
+                  value={`${data.appMemberRate}%`}
+                  valueColor={parseFloat(data.appMemberRate) >= 50 ? 'text-green-400' : parseFloat(data.appMemberRate) >= 30 ? 'text-blue-400' : 'text-yellow-400'}
+                />
+              </div>
             </div>
           </div>
 
@@ -260,12 +278,17 @@ function MiniKpi({ label, value, sub, valueColor = 'text-white' }: { label: stri
   )
 }
 
-function MiniKpiWithForecast({ label, value, forecast }: { label: string; value: number; forecast: number }) {
+function ForecastCard({ label, value, forecast, color = 'text-white' }: { label: string; value: number; forecast: number; color?: string }) {
   return (
     <div className="bg-gray-900/50 rounded-lg p-3">
       <p className="text-xs text-gray-400 mb-1">{label}</p>
-      <p className="text-lg font-bold text-white">{value.toLocaleString()}人</p>
-      <p className="text-sm font-semibold text-cyan-400 mt-0.5">着地: {forecast.toLocaleString()}人</p>
+      <div className="flex items-baseline gap-2">
+        <p className={`text-lg font-bold ${color}`}>{value.toLocaleString()}<span className="text-sm">人</span></p>
+      </div>
+      <div className="flex items-center gap-1.5 mt-1 bg-cyan-950/40 rounded px-2 py-0.5">
+        <span className="text-[10px] text-cyan-300/70">着地</span>
+        <span className="text-sm font-bold text-cyan-400">{forecast.toLocaleString()}人</span>
+      </div>
     </div>
   )
 }
