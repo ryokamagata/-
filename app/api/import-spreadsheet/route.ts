@@ -98,10 +98,11 @@ async function fetchSheetCSV2025(month: number): Promise<string> {
   return res.text()
 }
 
-async function fetchSheetCSV2026(): Promise<string> {
-  const url = `https://docs.google.com/spreadsheets/d/${SHEET_ID_2026}/gviz/tq?tqx=out:csv`
+async function fetchSheetCSV2026(sheetName?: string): Promise<string> {
+  const base = `https://docs.google.com/spreadsheets/d/${SHEET_ID_2026}/gviz/tq?tqx=out:csv`
+  const url = sheetName ? `${base}&sheet=${encodeURIComponent(sheetName)}` : base
   const res = await fetch(url, { cache: 'no-store' })
-  if (!res.ok) throw new Error(`Failed to fetch 2026 sheet: ${res.status}`)
+  if (!res.ok) throw new Error(`Failed to fetch 2026 sheet${sheetName ? ` (${sheetName})` : ''}: ${res.status}`)
   return res.text()
 }
 
@@ -313,6 +314,13 @@ function importRecordsToDB(
   return { staffCount, storeCount, totalSales }
 }
 
+// ━━━ 2026年シート設定: シート名 → { year, month, format } ━━━━━━━━━━━━━━━━━━━
+// format: 'full' = フルネーム形式, 'abbrev' = 略称形式 (2025と同じ)
+const SHEETS_2026: { sheetName: string; year: number; month: number; format: 'full' | 'abbrev' }[] = [
+  { sheetName: '2026年1月', year: 2026, month: 1, format: 'abbrev' },
+  // 2月はデフォルトシート（sheetNameなし）、フルネーム形式
+]
+
 // ━━━ POST: インポート実行 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 // body: { source?: '2025' | '2026', months?: number[], year?: number, month?: number }
 export async function POST(req: Request) {
@@ -320,40 +328,61 @@ export async function POST(req: Request) {
   const source: string = body.source || '2025'
 
   if (source === '2026') {
-    // 2026年スプレッドシート（単一シート: 2026年2月）
-    const year = body.year || 2026
-    const month = body.month || 2
-    const errors: string[] = []
+    // 2026年スプレッドシート
+    // months指定があればその月のみ、なければ1月(略称)と2月(フルネーム)の両方をインポート
+    const monthsToImport: number[] = body.months || [1, 2]
 
-    try {
-      const csv = await fetchSheetCSV2026()
-      const records = parseMonthData2026(csv)
-      const { staffCount, storeCount, totalSales } = importRecordsToDB(records, year, month)
+    const results: {
+      month: number
+      staffRecords: number
+      storeRecords: number
+      totalSales: number
+      errors: string[]
+    }[] = []
 
-      return NextResponse.json({
-        source: '2026',
-        year,
-        month,
-        results: [{ month, staffRecords: staffCount, storeRecords: storeCount, totalSales, errors }],
-        summary: {
-          totalStaffRecords: staffCount,
-          totalStoreRecords: storeCount,
-          totalSales,
-          monthsProcessed: 1,
-          monthsWithErrors: 0,
-        },
-      })
-    } catch (e) {
-      const msg = e instanceof Error ? e.message : String(e)
-      errors.push(msg)
-      return NextResponse.json({
-        source: '2026',
-        year,
-        month,
-        results: [{ month, staffRecords: 0, storeRecords: 0, totalSales: 0, errors }],
-        summary: { totalStaffRecords: 0, totalStoreRecords: 0, totalSales: 0, monthsProcessed: 1, monthsWithErrors: 1 },
-      })
+    for (const month of monthsToImport) {
+      const errors: string[] = []
+      const year = body.year || 2026
+
+      try {
+        const sheetConfig = SHEETS_2026.find(s => s.month === month)
+
+        let csv: string
+        let records: StaffRecord[]
+
+        if (sheetConfig) {
+          // 名前付きシート（1月など、略称形式）
+          csv = await fetchSheetCSV2026(sheetConfig.sheetName)
+          records = sheetConfig.format === 'abbrev'
+            ? parseMonthData2025(csv) // 略称形式は2025パーサーを流用
+            : parseMonthData2026(csv)
+        } else {
+          // デフォルトシート（2月、フルネーム形式）
+          csv = await fetchSheetCSV2026()
+          records = parseMonthData2026(csv)
+        }
+
+        const { staffCount, storeCount, totalSales } = importRecordsToDB(records, year, month)
+        results.push({ month, staffRecords: staffCount, storeRecords: storeCount, totalSales, errors })
+      } catch (e) {
+        const msg = e instanceof Error ? e.message : String(e)
+        errors.push(msg)
+        results.push({ month, staffRecords: 0, storeRecords: 0, totalSales: 0, errors })
+      }
     }
+
+    return NextResponse.json({
+      source: '2026',
+      year: body.year || 2026,
+      results,
+      summary: {
+        totalStaffRecords: results.reduce((s, r) => s + r.staffRecords, 0),
+        totalStoreRecords: results.reduce((s, r) => s + r.storeRecords, 0),
+        totalSales: results.reduce((s, r) => s + r.totalSales, 0),
+        monthsProcessed: results.length,
+        monthsWithErrors: results.filter(r => r.errors.length > 0).length,
+      },
+    })
   }
 
   // ━━━ 2025年スプレッドシート（月別シート） ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
