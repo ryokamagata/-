@@ -6,9 +6,10 @@ type TotalMonthly = { month: string; sales: number; customers: number }
 type StoreMonthRow = { store: string; sales: number; customers: number }
 type StaffSummary = {
   staff: string
-  latestSales: number
-  prevSales: number
-  prev2Sales: number
+  baseSales: number       // 前月（完了・ランキング基準）
+  prevSales: number       // 前々月
+  prev2Sales: number      // 3ヶ月前
+  currentSales: number    // 今月（進行中）
   growthRate: number | null
   monthly: { month: string; sales: number }[]
 }
@@ -40,15 +41,17 @@ type Projection = {
   monthDetails: AnnualMonthDetail[]
   prevYearTotal: number
   yoyProjectedGrowth: number | null
+  currentMonthEstimate: number | null
 }
 
 type HistoryData = {
   months: string[]
   latestMonth: string
   prevMonth: string
-  staffLatestMonth: string
+  staffBaseMonth: string
   staffPrevMonth: string
   staffPrev2Month: string
+  staffCurrentMonth: string
   totalMonthly: TotalMonthly[]
   storeByMonth: Record<string, StoreMonthRow[]>
   staffSummary: StaffSummary[]
@@ -148,7 +151,7 @@ function AnnualOverview({ data }: { data: HistoryData }) {
             <div className="flex items-center gap-2 mb-1">
               <p className="text-xs text-blue-300">{projection.currentYear}年 着地予測</p>
               <span className="text-[10px] bg-blue-800/50 text-blue-300 px-1.5 py-0.5 rounded">
-                予測
+                完了{projection.ytdMonths}ヶ月基準
               </span>
             </div>
             <p className="text-xl font-bold text-white">
@@ -167,13 +170,13 @@ function AnnualOverview({ data }: { data: HistoryData }) {
               )}
               {projection.avgYoYGrowthRate !== null && (
                 <span className="text-[10px] text-gray-500">
-                  月平均成長率: {projection.avgYoYGrowthRate >= 0 ? '+' : ''}{projection.avgYoYGrowthRate.toFixed(1)}%
+                  完了月平均成長率: {projection.avgYoYGrowthRate >= 0 ? '+' : ''}{projection.avgYoYGrowthRate.toFixed(1)}%
                 </span>
               )}
             </div>
             <p className="text-xs text-gray-500 mt-1">
-              実績: {projection.ytdMonths}ヶ月 (¥{projection.ytdTotal.toLocaleString()})
-              {' / '}残り {12 - projection.ytdMonths}ヶ月は前年同月×成長率で予測
+              完了実績: {projection.ytdMonths}ヶ月 (¥{projection.ytdTotal.toLocaleString()})
+              {' / '}今月+残り月は前年同月×成長率で予測
             </p>
           </div>
         )}
@@ -555,8 +558,8 @@ function StaffHistory({ data }: { data: HistoryData }) {
     return <p className="text-gray-500 text-sm text-center py-4">スタッフデータがありません</p>
   }
 
-  // 売上順でランキング番号を付与
-  const bySales = [...data.staffSummary].sort((a, b) => b.latestSales - a.latestSales)
+  // 売上順でランキング番号を付与（baseSales = 前月完了ベース）
+  const bySales = [...data.staffSummary].sort((a, b) => b.baseSales - a.baseSales)
   const salesRankMap = new Map<string, number>()
   bySales.forEach((s, i) => salesRankMap.set(s.staff, i + 1))
 
@@ -566,14 +569,15 @@ function StaffHistory({ data }: { data: HistoryData }) {
       const bG = b.growthRate ?? -Infinity
       return bG - aG
     }
-    return b.latestSales - a.latestSales
+    return b.baseSales - a.baseSales
   })
 
-  const maxSales = Math.max(...sorted.map(s => s.latestSales))
+  const maxSales = Math.max(...sorted.map(s => s.baseSales))
 
-  const m2Label = data.staffPrev2Month ? formatMonth(data.staffPrev2Month) : '前々月'
-  const m1Label = data.staffPrevMonth ? formatMonth(data.staffPrevMonth) : '前月'
-  const m0Label = data.staffLatestMonth ? formatMonth(data.staffLatestMonth) : '今月'
+  const prevLabel = data.staffPrevMonth ? formatMonth(data.staffPrevMonth) : '前々月'
+  const baseLabel = data.staffBaseMonth ? formatMonth(data.staffBaseMonth) : '前月'
+  const currentLabel = data.staffCurrentMonth ? formatMonth(data.staffCurrentMonth) + ' 現状' : '今月'
+  const hasCurrentMonth = !!data.staffCurrentMonth
 
   return (
     <div className="bg-gray-800 rounded-xl p-4">
@@ -598,7 +602,7 @@ function StaffHistory({ data }: { data: HistoryData }) {
       </div>
 
       <p className="text-xs text-gray-500 mb-2">
-        {m2Label} → {m1Label} → {m0Label}
+        {prevLabel} → {baseLabel}（順位基準）{hasCurrentMonth && <> → {currentLabel}</>}
       </p>
 
       <div className="overflow-x-auto">
@@ -607,22 +611,22 @@ function StaffHistory({ data }: { data: HistoryData }) {
             <tr className="text-gray-500 border-b border-gray-700">
               <th className="text-left py-2 px-1 w-6">順位</th>
               <th className="text-left py-2 px-1">スタッフ</th>
-              <th className="text-right py-2 px-1">{m2Label}</th>
-              <th className="text-right py-2 px-1">{m1Label}</th>
-              <th className="text-right py-2 px-1">{m0Label}</th>
+              <th className="text-right py-2 px-1">{prevLabel}</th>
+              <th className="text-right py-2 px-1">{baseLabel}</th>
+              {hasCurrentMonth && <th className="text-right py-2 px-1">{currentLabel}</th>}
               <th className="text-right py-2 px-1">前月比</th>
               <th className="py-2 px-1 w-16"></th>
             </tr>
           </thead>
           <tbody>
             {sorted.map((s) => {
-              const barPct = maxSales > 0 ? (s.latestSales / maxSales) * 100 : 0
+              const barPct = maxSales > 0 ? (s.baseSales / maxSales) * 100 : 0
               const isExpanded = expandedStaff === s.staff
-              const diff = s.prevSales > 0 ? s.latestSales - s.prevSales : null
               const rank = salesRankMap.get(s.staff) ?? 0
+              const colSpan = hasCurrentMonth ? 8 : 7
               return (
                 <tr key={s.staff} className="group">
-                  <td colSpan={7} className="p-0">
+                  <td colSpan={colSpan} className="p-0">
                     <div
                       className="flex items-center border-b border-gray-700/50 hover:bg-gray-700/30 cursor-pointer py-2 px-1"
                       onClick={() => setExpandedStaff(isExpanded ? null : s.staff)}
@@ -632,14 +636,16 @@ function StaffHistory({ data }: { data: HistoryData }) {
                       </span>
                       <span className="text-gray-300 truncate flex-1 px-1 min-w-0">{s.staff}</span>
                       <span className="text-gray-500 shrink-0 px-1 text-right w-20">
-                        {s.prev2Sales > 0 ? `¥${s.prev2Sales.toLocaleString()}` : '—'}
-                      </span>
-                      <span className="text-gray-400 shrink-0 px-1 text-right w-20">
-                        ¥{s.prevSales.toLocaleString()}
+                        {s.prevSales > 0 ? `¥${s.prevSales.toLocaleString()}` : '—'}
                       </span>
                       <span className="text-white font-bold shrink-0 px-1 text-right w-20">
-                        ¥{s.latestSales.toLocaleString()}
+                        ¥{s.baseSales.toLocaleString()}
                       </span>
+                      {hasCurrentMonth && (
+                        <span className="text-blue-300 shrink-0 px-1 text-right w-20">
+                          {s.currentSales > 0 ? `¥${s.currentSales.toLocaleString()}` : '—'}
+                        </span>
+                      )}
                       <span className="shrink-0 px-1 text-right w-16">
                         {s.growthRate !== null ? (
                           <span className={s.growthRate >= 0 ? 'text-green-400' : 'text-red-400'}>
