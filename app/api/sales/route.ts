@@ -172,7 +172,8 @@ export async function GET() {
     const effectiveDaysForForecast = Math.max(today, 1)
     const dailyAvg = effectiveDaysForForecast > 0 ? forecast.actualTotal / effectiveDaysForForecast : 0
     const monthProgressRate = effectiveDaysForForecast / daysInMonth
-    const dowPaceEstimate = forecast.forecastTotal
+    // 日割りペース着地（DOW曜日別は月初に不安定なので単純日割り）
+    const simplePaceEstimate = Math.round(dailyAvg * daysInMonth)
 
     // 前年同月データ取得
     const prevYearMonthly = getMonthlyTotalSales(year - 1, month, year - 1, month)
@@ -217,27 +218,22 @@ export async function GET() {
       paceWeight = 0.2 + (monthProgressRate - 0.3) / 0.4 * 0.6
     }
 
-    // 標準予測（ブレンド）
+    // 標準予測（日割りペース × YoY のブレンド）
     let standard: number
     if (yoyEstimate !== null && yoyEstimate > 0) {
-      standard = Math.round(dowPaceEstimate * paceWeight + yoyEstimate * (1 - paceWeight))
+      standard = Math.round(simplePaceEstimate * paceWeight + yoyEstimate * (1 - paceWeight))
     } else {
-      standard = dowPaceEstimate
+      standard = simplePaceEstimate
     }
 
-    // 堅実予測（低い方をベースに安全マージン）
-    let conservative: number
-    if (yoyEstimate !== null && yoyEstimate > 0) {
-      conservative = Math.round(Math.min(dowPaceEstimate, yoyEstimate) * 0.97)
-    } else {
-      conservative = Math.round(standard * 0.95)
-    }
+    // 堅実予測 = 標準の95%（安定した予測幅）
+    const conservative = Math.round(standard * 0.95)
 
     forecastDetail = {
       standard,
       conservative,
       rationale: {
-        paceEstimate: dowPaceEstimate,
+        paceEstimate: simplePaceEstimate,
         yoyEstimate,
         prevYearSales,
         yoyGrowthRate: avgYoYRate !== null ? avgYoYRate * 100 : null,

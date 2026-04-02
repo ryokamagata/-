@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { Fragment, useEffect, useState } from 'react'
 
 type TotalMonthly = { month: string; sales: number; customers: number }
 type StoreMonthRow = { store: string; sales: number; customers: number }
@@ -119,7 +119,6 @@ function AnnualOverview({ data }: { data: HistoryData }) {
   const { annualSummaries, projection } = data
   if (!annualSummaries || annualSummaries.length === 0) return null
 
-  // 前年（完全データ）のサマリーを探す
   const prevYearSummary = annualSummaries.find(s => s.isComplete)
 
   return (
@@ -129,7 +128,7 @@ function AnnualOverview({ data }: { data: HistoryData }) {
         <div className="bg-gray-700/50 rounded-xl p-4">
           <p className="text-xs text-gray-400 mb-1">{prevYearSummary.year}年 年間実績</p>
           <p className="text-xl font-bold text-white">
-            ¥{prevYearSummary.total.toLocaleString()}
+            {formatOkuMan(prevYearSummary.total)}
           </p>
           <p className="text-xs text-gray-500 mt-1">
             客数: {prevYearSummary.customers.toLocaleString()}人
@@ -157,7 +156,7 @@ function AnnualOverview({ data }: { data: HistoryData }) {
               <p className="text-[10px] text-yellow-400 mb-1">目標</p>
               <p className="text-sm font-bold text-yellow-400">
                 {projection.annualTarget
-                  ? `¥${(projection.annualTarget / 10000).toFixed(0)}万`
+                  ? formatOkuMan(projection.annualTarget)
                   : '未設定'}
               </p>
             </div>
@@ -165,12 +164,11 @@ function AnnualOverview({ data }: { data: HistoryData }) {
             <div className="bg-blue-900/30 rounded-lg p-3 text-center border border-blue-600/30">
               <p className="text-[10px] text-blue-300 mb-1">着地予測</p>
               <p className="text-sm font-bold text-white">
-                ¥{(projection.projectedTotal / 10000).toFixed(0)}万
+                {formatOkuMan(projection.projectedTotal)}
               </p>
               {projection.annualTarget && (
                 <p className={`text-[10px] mt-0.5 ${projection.projectedTotal >= projection.annualTarget ? 'text-green-400' : 'text-red-400'}`}>
-                  目標差 {projection.projectedTotal >= projection.annualTarget ? '+' : ''}
-                  ¥{((projection.projectedTotal - projection.annualTarget) / 10000).toFixed(0)}万
+                  目標差 {projection.projectedTotal >= projection.annualTarget ? '+' : ''}{formatOkuMan(projection.projectedTotal - projection.annualTarget)}
                 </p>
               )}
             </div>
@@ -178,12 +176,11 @@ function AnnualOverview({ data }: { data: HistoryData }) {
             <div className="bg-gray-800/60 rounded-lg p-3 text-center border border-gray-700/50">
               <p className="text-[10px] text-gray-400 mb-1">堅実ライン</p>
               <p className="text-sm font-bold text-gray-300">
-                ¥{(projection.conservativeTotal / 10000).toFixed(0)}万
+                {formatOkuMan(projection.conservativeTotal)}
               </p>
               {projection.annualTarget && (
                 <p className={`text-[10px] mt-0.5 ${projection.conservativeTotal >= projection.annualTarget ? 'text-green-400' : 'text-red-400'}`}>
-                  目標差 {projection.conservativeTotal >= projection.annualTarget ? '+' : ''}
-                  ¥{((projection.conservativeTotal - projection.annualTarget) / 10000).toFixed(0)}万
+                  目標差 {projection.conservativeTotal >= projection.annualTarget ? '+' : ''}{formatOkuMan(projection.conservativeTotal - projection.annualTarget)}
                 </p>
               )}
             </div>
@@ -194,10 +191,10 @@ function AnnualOverview({ data }: { data: HistoryData }) {
             {projection.avgYoYGrowthRate !== null && (
               <p>完了月平均成長率: {projection.avgYoYGrowthRate >= 0 ? '+' : ''}{projection.avgYoYGrowthRate.toFixed(1)}%（前年同月比）</p>
             )}
-            <p>完了実績: {projection.ytdMonths}ヶ月 ¥{projection.ytdTotal.toLocaleString()} / 今月+残り月は前年同月×成長率で予測</p>
+            <p>完了実績: {projection.ytdMonths}ヶ月 {formatOkuMan(projection.ytdTotal)} / 今月+残り月は前年同月×成長率で予測</p>
             <p>堅実ライン = 標準予測の95%</p>
             {prevYearSummary && (
-              <p>前年実績: ¥{prevYearSummary.total.toLocaleString()}
+              <p>前年実績: {formatOkuMan(prevYearSummary.total)}
                 {projection.yoyProjectedGrowth !== null && (
                   <> → 予測前年比 {projection.yoyProjectedGrowth >= 0 ? '+' : ''}{projection.yoyProjectedGrowth.toFixed(1)}%</>
                 )}
@@ -318,7 +315,7 @@ function AnnualOverview({ data }: { data: HistoryData }) {
         </div>
       )}
 
-      {/* 前年のみ完全データで着地予測がない場合: 年間合計テーブル */}
+      {/* 前年のみ完全データで着地予測がない場合 */}
       {!projection && prevYearSummary && (
         <div className="bg-gray-800 rounded-xl p-4">
           <h3 className="text-sm font-medium text-gray-300 mb-3">
@@ -377,10 +374,8 @@ function TotalHistory({ data }: { data: HistoryData }) {
 
   return (
     <div className="space-y-4">
-      {/* 年間合計 & 着地予測 */}
       <AnnualOverview data={data} />
 
-      {/* 月次推移テーブル */}
       <div className="bg-gray-800 rounded-xl p-4">
         <h3 className="text-sm font-medium text-gray-300 mb-3">全店舗合計 月次推移</h3>
         <div className="overflow-x-auto">
@@ -454,14 +449,12 @@ function StoreHistory({
   selectedStore: string
   onStoreChange: (s: string) => void
 }) {
-  // 全店舗リスト抽出
   const storeSet = new Set<string>()
   for (const rows of Object.values(data.storeByMonth)) {
     for (const r of rows) storeSet.add(r.store)
   }
   const stores = Array.from(storeSet).sort()
 
-  // 選択店舗の月次データ
   const storeMonthlyData: { month: string; sales: number; customers: number }[] = []
   if (selectedStore === 'all') {
     for (const m of data.totalMonthly) {
@@ -481,7 +474,6 @@ function StoreHistory({
 
   return (
     <div className="space-y-3">
-      {/* 店舗セレクター */}
       <div className="bg-gray-800 rounded-xl p-4">
         <h3 className="text-sm font-medium text-gray-300 mb-3">店舗選択</h3>
         <div className="flex flex-wrap gap-1.5">
@@ -507,7 +499,6 @@ function StoreHistory({
         </div>
       </div>
 
-      {/* 月次推移テーブル */}
       <div className="bg-gray-800 rounded-xl p-4">
         <h3 className="text-sm font-medium text-gray-300 mb-3">
           {selectedStore === 'all' ? '全店舗合計' : shortenStoreName(selectedStore)} 月次推移
@@ -586,7 +577,6 @@ function StaffHistory({ data }: { data: HistoryData }) {
     return <p className="text-gray-500 text-sm text-center py-4">スタッフデータがありません</p>
   }
 
-  // 売上順でランキング番号を付与（baseSales = 前月完了ベース）
   const bySales = [...data.staffSummary].sort((a, b) => b.baseSales - a.baseSales)
   const salesRankMap = new Map<string, number>()
   bySales.forEach((s, i) => salesRankMap.set(s.staff, i + 1))
@@ -602,7 +592,6 @@ function StaffHistory({ data }: { data: HistoryData }) {
 
   const maxSales = Math.max(...sorted.map(s => s.baseSales))
 
-  // 月ラベル
   const prevShort = data.staffPrevMonth ? formatShortMonth(data.staffPrevMonth) : '前々月'
   const baseShort = data.staffBaseMonth ? formatShortMonth(data.staffBaseMonth) : '前月'
   const currentShort = data.staffCurrentMonth ? formatShortMonth(data.staffCurrentMonth) : '今月'
@@ -612,6 +601,8 @@ function StaffHistory({ data }: { data: HistoryData }) {
   const comparisonLabel = data.staffPrevMonth && data.staffBaseMonth
     ? `${prevShort}▶${baseShort}`
     : '前月比'
+
+  const colCount = hasCurrentMonth ? 7 : 6
 
   return (
     <div className="bg-gray-800 rounded-xl p-4">
@@ -640,22 +631,27 @@ function StaffHistory({ data }: { data: HistoryData }) {
       </p>
 
       <div className="overflow-x-auto">
-        <table className="w-full text-xs">
+        <table className="w-full text-xs table-fixed">
+          <colgroup>
+            <col style={{ width: '28px' }} />
+            <col />
+            {hasCurrentMonth && <col style={{ width: '90px' }} />}
+            <col style={{ width: '100px' }} />
+            <col style={{ width: '90px' }} />
+            <col style={{ width: '90px' }} />
+            <col style={{ width: '56px' }} />
+          </colgroup>
           <thead>
             <tr className="text-gray-500 border-b border-gray-700">
-              <th className="text-left py-2 px-1 w-6">#</th>
+              <th className="text-right py-2 px-1">#</th>
               <th className="text-left py-2 px-1">スタッフ</th>
               {hasCurrentMonth && (
-                <th className="text-right py-2 px-1">
-                  <span className="text-blue-300">{currentShort}現状</span>
-                </th>
+                <th className="text-right py-2 px-1 text-blue-300">{currentShort}現状</th>
               )}
-              <th className="text-right py-2 px-1">
-                {baseShort}<span className="text-yellow-400">★</span>
-              </th>
+              <th className="text-right py-2 px-1">{baseShort}<span className="text-yellow-400">★</span></th>
               <th className="text-right py-2 px-1">{prevShort}</th>
               <th className="text-right py-2 px-1">{comparisonLabel}</th>
-              <th className="py-2 px-1 w-16"></th>
+              <th className="py-2 px-1"></th>
             </tr>
           </thead>
           <tbody>
@@ -663,92 +659,85 @@ function StaffHistory({ data }: { data: HistoryData }) {
               const barPct = maxSales > 0 ? (s.baseSales / maxSales) * 100 : 0
               const isExpanded = expandedStaff === s.staff
               const rank = salesRankMap.get(s.staff) ?? 0
-              const colSpan = hasCurrentMonth ? 7 : 6
               const salesDiff = s.baseSales - s.prevSales
               return (
-                <tr key={s.staff} className="group">
-                  <td colSpan={colSpan} className="p-0">
-                    <div
-                      className="flex items-center border-b border-gray-700/50 hover:bg-gray-700/30 cursor-pointer py-2 px-1"
-                      onClick={() => setExpandedStaff(isExpanded ? null : s.staff)}
-                    >
-                      {/* 順位 */}
-                      <span className={`w-6 text-right shrink-0 font-bold ${rank <= 3 ? 'text-yellow-400' : 'text-gray-500'}`}>
-                        {rank}
-                      </span>
-                      {/* スタッフ名 */}
-                      <span className="text-gray-300 truncate flex-1 px-1 min-w-0">{s.staff}</span>
-                      {/* 今月現状 (左) */}
-                      {hasCurrentMonth && (
-                        <span className="text-blue-300 shrink-0 px-1 text-right w-20">
-                          {s.currentSales > 0 ? `¥${s.currentSales.toLocaleString()}` : '—'}
-                        </span>
-                      )}
-                      {/* 前月・基準 (中) */}
-                      <span className="text-white font-bold shrink-0 px-1 text-right w-20">
-                        ¥{s.baseSales.toLocaleString()}
-                      </span>
-                      {/* 前々月 (右) */}
-                      <span className="text-gray-500 shrink-0 px-1 text-right w-20">
-                        {s.prevSales > 0 ? `¥${s.prevSales.toLocaleString()}` : '—'}
-                      </span>
-                      {/* 月対比 (率 + 金額) */}
-                      <span className="shrink-0 px-1 text-right w-24">
-                        {s.growthRate !== null ? (
-                          <div className="leading-tight">
-                            <span className={`${s.growthRate >= 0 ? 'text-green-400' : 'text-red-400'}`}>
-                              {s.growthRate >= 0 ? '+' : ''}{s.growthRate.toFixed(1)}%
-                            </span>
-                            <br />
-                            <span className={`text-[10px] ${salesDiff >= 0 ? 'text-green-400' : 'text-red-400'}`}>
-                              {salesDiff >= 0 ? '+' : ''}¥{salesDiff.toLocaleString()}
-                            </span>
-                          </div>
-                        ) : (
-                          <span className="text-gray-600">—</span>
-                        )}
-                      </span>
-                      {/* バー */}
-                      <div className="w-16 shrink-0 px-1">
-                        <div className="w-full h-2 bg-gray-700 rounded-full overflow-hidden">
-                          <div className="h-full bg-blue-500 rounded-full" style={{ width: `${barPct}%` }} />
-                        </div>
-                      </div>
-                    </div>
-                    {/* 展開: 月次推移 */}
-                    {isExpanded && s.monthly.length > 0 && (
-                      <div className="bg-gray-900/50 px-4 py-2 border-b border-gray-700/50">
-                        <p className="text-xs text-gray-500 mb-1">月次推移</p>
-                        <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-6 gap-2">
-                          {s.monthly.map((m, mi) => {
-                            const prev = mi > 0 ? s.monthly[mi - 1] : null
-                            const mg = prev && prev.sales > 0 ? ((m.sales - prev.sales) / prev.sales) * 100 : null
-                            const md = prev ? m.sales - prev.sales : null
-                            const pLabel = prev ? formatShortMonth(prev.month) : ''
-                            const cLabel = formatShortMonth(m.month)
-                            return (
-                              <div key={m.month} className="bg-gray-800 rounded p-2">
-                                <p className="text-gray-500 text-xs">{formatMonth(m.month)}</p>
-                                <p className="text-white font-bold text-sm">¥{m.sales.toLocaleString()}</p>
-                                {md !== null && (
-                                  <p className={`text-[10px] ${md >= 0 ? 'text-green-400' : 'text-red-400'}`}>
-                                    <span className="text-gray-600">{pLabel}▶{cLabel}</span>{' '}
-                                    {md >= 0 ? '+' : ''}¥{md.toLocaleString()}
-                                  </p>
-                                )}
-                                {mg !== null && (
-                                  <p className={`text-[10px] ${mg >= 0 ? 'text-green-400' : 'text-red-400'}`}>
-                                    {mg >= 0 ? '+' : ''}{mg.toFixed(1)}%
-                                  </p>
-                                )}
-                              </div>
-                            )
-                          })}
-                        </div>
-                      </div>
+                <Fragment key={s.staff}>
+                  <tr
+                    className="border-b border-gray-700/50 hover:bg-gray-700/30 cursor-pointer"
+                    onClick={() => setExpandedStaff(isExpanded ? null : s.staff)}
+                  >
+                    <td className="py-2 px-1 text-right">
+                      <span className={`font-bold ${rank <= 3 ? 'text-yellow-400' : 'text-gray-500'}`}>{rank}</span>
+                    </td>
+                    <td className="py-2 px-1 text-gray-300 truncate">{s.staff}</td>
+                    {hasCurrentMonth && (
+                      <td className="py-2 px-1 text-right text-blue-300 tabular-nums">
+                        {s.currentSales > 0 ? `¥${s.currentSales.toLocaleString()}` : '—'}
+                      </td>
                     )}
-                  </td>
-                </tr>
+                    <td className="py-2 px-1 text-right text-white font-bold tabular-nums">
+                      ¥{s.baseSales.toLocaleString()}
+                    </td>
+                    <td className="py-2 px-1 text-right text-gray-500 tabular-nums">
+                      {s.prevSales > 0 ? `¥${s.prevSales.toLocaleString()}` : '—'}
+                    </td>
+                    <td className="py-2 px-1 text-right">
+                      {s.growthRate !== null ? (
+                        <div className="leading-tight">
+                          <span className={`${s.growthRate >= 0 ? 'text-green-400' : 'text-red-400'}`}>
+                            {s.growthRate >= 0 ? '+' : ''}{s.growthRate.toFixed(1)}%
+                          </span>
+                          <br />
+                          <span className={`text-[10px] ${salesDiff >= 0 ? 'text-green-400' : 'text-red-400'}`}>
+                            {salesDiff >= 0 ? '+' : ''}¥{salesDiff.toLocaleString()}
+                          </span>
+                        </div>
+                      ) : (
+                        <span className="text-gray-600">—</span>
+                      )}
+                    </td>
+                    <td className="py-2 px-1">
+                      <div className="w-full h-2 bg-gray-700 rounded-full overflow-hidden">
+                        <div className="h-full bg-blue-500 rounded-full" style={{ width: `${barPct}%` }} />
+                      </div>
+                    </td>
+                  </tr>
+                  {isExpanded && s.monthly.length > 0 && (
+                    <tr>
+                      <td colSpan={colCount} className="p-0">
+                        <div className="bg-gray-900/50 px-4 py-2 border-b border-gray-700/50">
+                          <p className="text-xs text-gray-500 mb-1">月次推移</p>
+                          <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-6 gap-2">
+                            {s.monthly.map((m, mi) => {
+                              const prev = mi > 0 ? s.monthly[mi - 1] : null
+                              const mg = prev && prev.sales > 0 ? ((m.sales - prev.sales) / prev.sales) * 100 : null
+                              const md = prev ? m.sales - prev.sales : null
+                              const pLabel = prev ? formatShortMonth(prev.month) : ''
+                              const cLabel = formatShortMonth(m.month)
+                              return (
+                                <div key={m.month} className="bg-gray-800 rounded p-2">
+                                  <p className="text-gray-500 text-xs">{formatMonth(m.month)}</p>
+                                  <p className="text-white font-bold text-sm">¥{m.sales.toLocaleString()}</p>
+                                  {md !== null && (
+                                    <p className={`text-[10px] ${md >= 0 ? 'text-green-400' : 'text-red-400'}`}>
+                                      <span className="text-gray-600">{pLabel}▶{cLabel}</span>{' '}
+                                      {md >= 0 ? '+' : ''}¥{md.toLocaleString()}
+                                    </p>
+                                  )}
+                                  {mg !== null && (
+                                    <p className={`text-[10px] ${mg >= 0 ? 'text-green-400' : 'text-red-400'}`}>
+                                      {mg >= 0 ? '+' : ''}{mg.toFixed(1)}%
+                                    </p>
+                                  )}
+                                </div>
+                              )
+                            })}
+                          </div>
+                        </div>
+                      </td>
+                    </tr>
+                  )}
+                </Fragment>
               )
             })}
           </tbody>
@@ -768,6 +757,17 @@ function formatMonth(m: string): string {
 function formatShortMonth(m: string): string {
   const [, mo] = m.split('-')
   return `${parseInt(mo)}月`
+}
+
+/** 億万表記（¥9億8,200万 形式） */
+function formatOkuMan(n: number): string {
+  const abs = Math.abs(n)
+  const sign = n < 0 ? '-' : ''
+  const oku = Math.floor(abs / 100000000)
+  const man = Math.round((abs % 100000000) / 10000)
+  if (oku > 0 && man > 0) return `${sign}¥${oku}億${man.toLocaleString()}万`
+  if (oku > 0) return `${sign}¥${oku}億`
+  return `${sign}¥${man.toLocaleString()}万`
 }
 
 function shortenStoreName(name: string): string {
