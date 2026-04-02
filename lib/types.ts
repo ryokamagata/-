@@ -29,6 +29,21 @@ export type ForecastResult = {
   dowAverages: Record<number, number>  // 曜日 → 平均売上
 }
 
+// 着地予測の詳細（3パターン + 根拠）
+export type ForecastDetail = {
+  standard: number           // 標準予測（ブレンド）
+  conservative: number       // 堅実予測
+  rationale: {
+    paceEstimate: number       // DOWペース着地
+    yoyEstimate: number | null // 前年同月×成長率
+    prevYearSales: number | null // 前年同月実績
+    yoyGrowthRate: number | null // 完了月平均YoY成長率(%)
+    paceWeight: number         // ペース重み(0-1)
+    dailyAvg: number           // 日平均売上
+    monthProgress: number      // 月進捗率(0-1)
+  }
+}
+
 // API レスポンス
 export type DashboardData = {
   year: number
@@ -60,4 +75,5 @@ export type DashboardData = {
   totalUsers: number              // 総顧客数(登録)
   appMembers: number              // アプリ会員数
   appMemberRate: string           // アプリ会員率(%)
+  forecastDetail: ForecastDetail | null  // 着地予測詳細（3パターン+根拠）
 }

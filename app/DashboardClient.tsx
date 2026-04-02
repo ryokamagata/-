@@ -125,23 +125,11 @@ export default function DashboardClient() {
       {mainTab === 'current' && <>
 
       {/* KPI カード */}
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+          <div className="grid grid-cols-3 gap-3">
             <KpiCard
               label="累計売上"
               value={formatYen(data.totalSales)}
               sub={`${data.today}日分`}
-            />
-            <KpiCard
-              label="月末予測"
-              value={formatYen(data.forecast.forecastTotal)}
-              sub={`予測精度: ${CONFIDENCE_LABEL[data.forecast.confidence]}`}
-              subColor={
-                data.forecast.confidence === 'high'
-                  ? 'text-green-400'
-                  : data.forecast.confidence === 'medium'
-                  ? 'text-yellow-400'
-                  : 'text-gray-400'
-              }
             />
             <KpiCard
               label="達成率"
@@ -165,6 +153,9 @@ export default function DashboardClient() {
               sub={`${data.daysInMonth}日中 ${data.today}日経過`}
             />
           </div>
+
+          {/* 今月着地予測 3パターン */}
+          <ForecastDetailSection data={data} />
 
           {/* 進捗ゲージ */}
           {data.monthlyTarget && data.monthlyTarget > 0 && (
@@ -293,6 +284,118 @@ export default function DashboardClient() {
 
       </>}
     </main>
+  )
+}
+
+function ForecastDetailSection({ data }: { data: DashboardData }) {
+  const fd = data.forecastDetail
+  const target = data.monthlyTarget
+  const standard = fd?.standard ?? data.forecast.forecastTotal
+  const conservative = fd?.conservative ?? Math.round(data.forecast.forecastTotal * 0.95)
+  const confidence = data.forecast.confidence
+
+  const targetDiffStd = target ? standard - target : null
+  const targetDiffCon = target ? conservative - target : null
+
+  return (
+    <div className="bg-gradient-to-br from-gray-800 to-gray-900 rounded-xl p-4 space-y-3 border border-gray-700/50">
+      <div className="flex items-center justify-between">
+        <h2 className="text-sm font-medium text-gray-300">今月着地予測</h2>
+        <span className={`text-[10px] px-2 py-0.5 rounded ${
+          confidence === 'high' ? 'bg-green-900/50 text-green-400' :
+          confidence === 'medium' ? 'bg-yellow-900/50 text-yellow-400' :
+          'bg-gray-700 text-gray-400'
+        }`}>
+          精度: {confidence === 'high' ? '高' : confidence === 'medium' ? '中' : '低'}
+          {fd && ` (${Math.round(fd.rationale.monthProgress * 100)}%経過)`}
+        </span>
+      </div>
+
+      {/* 3パターンカード */}
+      <div className="grid grid-cols-3 gap-2">
+        {/* 目標 */}
+        <div className="bg-yellow-900/20 border border-yellow-700/30 rounded-lg p-3 text-center">
+          <p className="text-[10px] text-yellow-400 mb-1 font-medium">目標</p>
+          <p className="text-lg font-bold text-yellow-400">
+            {target ? formatYen(target) : '未設定'}
+          </p>
+        </div>
+        {/* 着地予測（標準） */}
+        <div className="bg-blue-900/20 border border-blue-600/30 rounded-lg p-3 text-center">
+          <p className="text-[10px] text-blue-300 mb-1 font-medium">着地予測</p>
+          <p className="text-lg font-bold text-white">
+            {formatYen(standard)}
+          </p>
+          {targetDiffStd !== null && (
+            <p className={`text-[10px] mt-0.5 ${targetDiffStd >= 0 ? 'text-green-400' : 'text-red-400'}`}>
+              目標差 {targetDiffStd >= 0 ? '+' : ''}{formatYen(targetDiffStd)}
+            </p>
+          )}
+        </div>
+        {/* 堅実ライン */}
+        <div className="bg-gray-800/60 border border-gray-600/30 rounded-lg p-3 text-center">
+          <p className="text-[10px] text-gray-400 mb-1 font-medium">堅実ライン</p>
+          <p className="text-lg font-bold text-gray-300">
+            {formatYen(conservative)}
+          </p>
+          {targetDiffCon !== null && (
+            <p className={`text-[10px] mt-0.5 ${targetDiffCon >= 0 ? 'text-green-400' : 'text-red-400'}`}>
+              目標差 {targetDiffCon >= 0 ? '+' : ''}{formatYen(targetDiffCon)}
+            </p>
+          )}
+        </div>
+      </div>
+
+      {/* 予測根拠 */}
+      {fd && (
+        <div className="bg-gray-900/50 rounded-lg p-3 space-y-1.5">
+          <p className="text-xs font-medium text-gray-400 mb-2">予測の根拠</p>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-1 text-[11px]">
+            <div className="flex justify-between text-gray-400">
+              <span>日割りペース</span>
+              <span className="text-gray-300">
+                {formatYen(fd.rationale.dailyAvg)}/日 → {formatYen(fd.rationale.paceEstimate)}
+              </span>
+            </div>
+            {fd.rationale.prevYearSales !== null && (
+              <div className="flex justify-between text-gray-400">
+                <span>前年{data.month}月実績</span>
+                <span className="text-gray-300">{formatYen(fd.rationale.prevYearSales)}</span>
+              </div>
+            )}
+            {fd.rationale.yoyGrowthRate !== null && (
+              <div className="flex justify-between text-gray-400">
+                <span>今年平均成長率</span>
+                <span className={fd.rationale.yoyGrowthRate >= 0 ? 'text-green-400' : 'text-red-400'}>
+                  {fd.rationale.yoyGrowthRate >= 0 ? '+' : ''}{fd.rationale.yoyGrowthRate.toFixed(1)}%
+                </span>
+              </div>
+            )}
+            {fd.rationale.yoyEstimate !== null && (
+              <div className="flex justify-between text-gray-400">
+                <span>YoY予測着地</span>
+                <span className="text-gray-300">{formatYen(fd.rationale.yoyEstimate)}</span>
+              </div>
+            )}
+            <div className="flex justify-between text-gray-400">
+              <span>ブレンド比率</span>
+              <span className="text-gray-300">
+                ペース{Math.round(fd.rationale.paceWeight * 100)}% / YoY{Math.round((1 - fd.rationale.paceWeight) * 100)}%
+              </span>
+            </div>
+            <div className="flex justify-between text-gray-400">
+              <span>月進捗</span>
+              <span className="text-gray-300">
+                {data.today}/{data.daysInMonth}日 ({Math.round(fd.rationale.monthProgress * 100)}%)
+              </span>
+            </div>
+          </div>
+          <p className="text-[10px] text-gray-600 mt-1">
+            ※ 標準予測 = 日割りペース×{Math.round(fd.rationale.paceWeight * 100)}% + YoY予測×{Math.round((1 - fd.rationale.paceWeight) * 100)}% / 堅実 = 低い方の予測×97%
+          </p>
+        </div>
+      )}
+    </div>
   )
 }
 

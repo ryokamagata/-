@@ -9,10 +9,11 @@ import {
   getPerStoreVisitors,
   getPerStoreUsers,
   getPerStoreCycle,
+  getMonthlyTotalSales,
 } from '@/lib/db'
 import { computeForecast } from '@/lib/forecastEngine'
 import { mergeStaffSales } from '@/lib/staffNormalize'
-import type { DailySales, DashboardData } from '@/lib/types'
+import type { DailySales, DashboardData, ForecastDetail } from '@/lib/types'
 
 export const revalidate = 0
 
@@ -165,6 +166,88 @@ export async function GET() {
     ? (appMemberRates.reduce((s, r) => s + r, 0) / appMemberRates.length).toFixed(1)
     : '0'
 
+  // ── 着地予測詳細（3パターン + 根拠）──────────────────────────────────────
+  let forecastDetail: ForecastDetail | null = null
+  {
+    const effectiveDaysForForecast = Math.max(today, 1)
+    const dailyAvg = effectiveDaysForForecast > 0 ? forecast.actualTotal / effectiveDaysForForecast : 0
+    const monthProgressRate = effectiveDaysForForecast / daysInMonth
+    const dowPaceEstimate = forecast.forecastTotal
+
+    // 前年同月データ取得
+    const prevYearMonthly = getMonthlyTotalSales(year - 1, month, year - 1, month)
+    const prevYearSales = prevYearMonthly.length > 0 ? prevYearMonthly[0].sales : null
+
+    // 完了月の前年比を計算（今年1月〜先月 vs 去年同月）
+    let avgYoYRate: number | null = null
+    if (month > 1) {
+      const currentYearMonthly = getMonthlyTotalSales(year, 1, year, month - 1)
+      const prevYearAllMonths = getMonthlyTotalSales(year - 1, 1, year - 1, 12)
+
+      const yoyRates: number[] = []
+      for (let mo = 1; mo < month; mo++) {
+        const currKey = `${year}-${String(mo).padStart(2, '0')}`
+        const prevKey = `${year - 1}-${String(mo).padStart(2, '0')}`
+        const curr = currentYearMonthly.find(m => m.month === currKey)
+        const prev = prevYearAllMonths.find(m => m.month === prevKey)
+        if (curr && prev && prev.sales > 0) {
+          yoyRates.push((curr.sales - prev.sales) / prev.sales)
+        }
+      }
+      if (yoyRates.length > 0) {
+        avgYoYRate = yoyRates.reduce((a, b) => a + b, 0) / yoyRates.length
+      }
+    }
+
+    // YoY予測（前年同月 × (1 + 平均成長率)）
+    let yoyEstimate: number | null = null
+    if (prevYearSales !== null && prevYearSales > 0) {
+      yoyEstimate = avgYoYRate !== null
+        ? Math.round(prevYearSales * (1 + avgYoYRate))
+        : prevYearSales
+    }
+
+    // ブレンド比率（月が進むほどペースを信頼）
+    let paceWeight: number
+    if (monthProgressRate < 0.3) {
+      paceWeight = 0.2
+    } else if (monthProgressRate > 0.7) {
+      paceWeight = 0.8
+    } else {
+      paceWeight = 0.2 + (monthProgressRate - 0.3) / 0.4 * 0.6
+    }
+
+    // 標準予測（ブレンド）
+    let standard: number
+    if (yoyEstimate !== null && yoyEstimate > 0) {
+      standard = Math.round(dowPaceEstimate * paceWeight + yoyEstimate * (1 - paceWeight))
+    } else {
+      standard = dowPaceEstimate
+    }
+
+    // 堅実予測（低い方をベースに安全マージン）
+    let conservative: number
+    if (yoyEstimate !== null && yoyEstimate > 0) {
+      conservative = Math.round(Math.min(dowPaceEstimate, yoyEstimate) * 0.97)
+    } else {
+      conservative = Math.round(standard * 0.95)
+    }
+
+    forecastDetail = {
+      standard,
+      conservative,
+      rationale: {
+        paceEstimate: dowPaceEstimate,
+        yoyEstimate,
+        prevYearSales,
+        yoyGrowthRate: avgYoYRate !== null ? avgYoYRate * 100 : null,
+        paceWeight,
+        dailyAvg: Math.round(dailyAvg),
+        monthProgress: monthProgressRate,
+      },
+    }
+  }
+
   const response: DashboardData = {
     year,
     month,
@@ -194,6 +277,7 @@ export async function GET() {
     totalUsers,
     appMembers,
     appMemberRate,
+    forecastDetail,
   }
 
   return NextResponse.json(response)

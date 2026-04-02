@@ -42,6 +42,8 @@ type Projection = {
   prevYearTotal: number
   yoyProjectedGrowth: number | null
   currentMonthEstimate: number | null
+  conservativeTotal: number
+  annualTarget: number | null
 }
 
 type HistoryData = {
@@ -120,67 +122,90 @@ function AnnualOverview({ data }: { data: HistoryData }) {
   // 前年（完全データ）のサマリーを探す
   const prevYearSummary = annualSummaries.find(s => s.isComplete)
 
-  // 着地予測と前年の差額
-  const projDiff = projection && prevYearSummary
-    ? projection.projectedTotal - prevYearSummary.total
-    : null
-
   return (
     <div className="space-y-3">
-      {/* 年間合計カード */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-        {/* 前年実績 */}
-        {prevYearSummary && (
-          <div className="bg-gray-700/50 rounded-xl p-4">
-            <p className="text-xs text-gray-400 mb-1">{prevYearSummary.year}年 年間合計</p>
-            <p className="text-xl font-bold text-white">
-              ¥{prevYearSummary.total.toLocaleString()}
-            </p>
-            <p className="text-xs text-gray-500 mt-1">
-              客数: {prevYearSummary.customers.toLocaleString()}人
-              {prevYearSummary.customers > 0 && (
-                <> / 客単価: ¥{Math.round(prevYearSummary.total / prevYearSummary.customers).toLocaleString()}</>
-              )}
-            </p>
-          </div>
-        )}
+      {/* 前年実績カード */}
+      {prevYearSummary && (
+        <div className="bg-gray-700/50 rounded-xl p-4">
+          <p className="text-xs text-gray-400 mb-1">{prevYearSummary.year}年 年間実績</p>
+          <p className="text-xl font-bold text-white">
+            ¥{prevYearSummary.total.toLocaleString()}
+          </p>
+          <p className="text-xs text-gray-500 mt-1">
+            客数: {prevYearSummary.customers.toLocaleString()}人
+            {prevYearSummary.customers > 0 && (
+              <> / 客単価: ¥{Math.round(prevYearSummary.total / prevYearSummary.customers).toLocaleString()}</>
+            )}
+          </p>
+        </div>
+      )}
 
-        {/* 今年着地予測 */}
-        {projection && (
-          <div className="bg-gradient-to-br from-blue-900/40 to-purple-900/40 border border-blue-700/30 rounded-xl p-4">
-            <div className="flex items-center gap-2 mb-1">
-              <p className="text-xs text-blue-300">{projection.currentYear}年 着地予測</p>
-              <span className="text-[10px] bg-blue-800/50 text-blue-300 px-1.5 py-0.5 rounded">
-                完了{projection.ytdMonths}ヶ月基準
-              </span>
-            </div>
-            <p className="text-xl font-bold text-white">
-              ¥{projection.projectedTotal.toLocaleString()}
-            </p>
-            <div className="flex flex-wrap items-center gap-3 mt-1">
-              {projection.yoyProjectedGrowth !== null && (
-                <span className={`text-xs font-medium ${projection.yoyProjectedGrowth >= 0 ? 'text-green-400' : 'text-red-400'}`}>
-                  前年比 {projection.yoyProjectedGrowth >= 0 ? '+' : ''}{projection.yoyProjectedGrowth.toFixed(1)}%
-                </span>
-              )}
-              {projDiff !== null && (
-                <span className={`text-xs font-medium ${projDiff >= 0 ? 'text-green-400' : 'text-red-400'}`}>
-                  ({projDiff >= 0 ? '+' : ''}¥{projDiff.toLocaleString()})
-                </span>
-              )}
-              {projection.avgYoYGrowthRate !== null && (
-                <span className="text-[10px] text-gray-500">
-                  完了月平均成長率: {projection.avgYoYGrowthRate >= 0 ? '+' : ''}{projection.avgYoYGrowthRate.toFixed(1)}%
-                </span>
-              )}
-            </div>
-            <p className="text-xs text-gray-500 mt-1">
-              完了実績: {projection.ytdMonths}ヶ月 (¥{projection.ytdTotal.toLocaleString()})
-              {' / '}今月+残り月は前年同月×成長率で予測
-            </p>
+      {/* 今年着地予測 3パターン */}
+      {projection && (
+        <div className="bg-gradient-to-br from-blue-900/40 to-purple-900/40 border border-blue-700/30 rounded-xl p-4">
+          <div className="flex items-center gap-2 mb-3">
+            <p className="text-sm font-medium text-blue-300">{projection.currentYear}年 着地予測</p>
+            <span className="text-[10px] bg-blue-800/50 text-blue-300 px-1.5 py-0.5 rounded">
+              完了{projection.ytdMonths}ヶ月基準
+            </span>
           </div>
-        )}
-      </div>
+
+          {/* 3パターン表示 */}
+          <div className="grid grid-cols-3 gap-2 mb-3">
+            {/* 目標 */}
+            <div className="bg-gray-800/60 rounded-lg p-3 text-center border border-gray-700/50">
+              <p className="text-[10px] text-yellow-400 mb-1">目標</p>
+              <p className="text-sm font-bold text-yellow-400">
+                {projection.annualTarget
+                  ? `¥${(projection.annualTarget / 10000).toFixed(0)}万`
+                  : '未設定'}
+              </p>
+            </div>
+            {/* 着地予測（標準） */}
+            <div className="bg-blue-900/30 rounded-lg p-3 text-center border border-blue-600/30">
+              <p className="text-[10px] text-blue-300 mb-1">着地予測</p>
+              <p className="text-sm font-bold text-white">
+                ¥{(projection.projectedTotal / 10000).toFixed(0)}万
+              </p>
+              {projection.annualTarget && (
+                <p className={`text-[10px] mt-0.5 ${projection.projectedTotal >= projection.annualTarget ? 'text-green-400' : 'text-red-400'}`}>
+                  目標差 {projection.projectedTotal >= projection.annualTarget ? '+' : ''}
+                  ¥{((projection.projectedTotal - projection.annualTarget) / 10000).toFixed(0)}万
+                </p>
+              )}
+            </div>
+            {/* 堅実ライン */}
+            <div className="bg-gray-800/60 rounded-lg p-3 text-center border border-gray-700/50">
+              <p className="text-[10px] text-gray-400 mb-1">堅実ライン</p>
+              <p className="text-sm font-bold text-gray-300">
+                ¥{(projection.conservativeTotal / 10000).toFixed(0)}万
+              </p>
+              {projection.annualTarget && (
+                <p className={`text-[10px] mt-0.5 ${projection.conservativeTotal >= projection.annualTarget ? 'text-green-400' : 'text-red-400'}`}>
+                  目標差 {projection.conservativeTotal >= projection.annualTarget ? '+' : ''}
+                  ¥{((projection.conservativeTotal - projection.annualTarget) / 10000).toFixed(0)}万
+                </p>
+              )}
+            </div>
+          </div>
+
+          {/* 根拠 */}
+          <div className="text-[10px] text-gray-500 space-y-0.5">
+            {projection.avgYoYGrowthRate !== null && (
+              <p>完了月平均成長率: {projection.avgYoYGrowthRate >= 0 ? '+' : ''}{projection.avgYoYGrowthRate.toFixed(1)}%（前年同月比）</p>
+            )}
+            <p>完了実績: {projection.ytdMonths}ヶ月 ¥{projection.ytdTotal.toLocaleString()} / 今月+残り月は前年同月×成長率で予測</p>
+            <p>堅実ライン = 標準予測の95%</p>
+            {prevYearSummary && (
+              <p>前年実績: ¥{prevYearSummary.total.toLocaleString()}
+                {projection.yoyProjectedGrowth !== null && (
+                  <> → 予測前年比 {projection.yoyProjectedGrowth >= 0 ? '+' : ''}{projection.yoyProjectedGrowth.toFixed(1)}%</>
+                )}
+              </p>
+            )}
+          </div>
+        </div>
+      )}
 
       {/* 月別内訳（実績 + 予測） */}
       {projection && projection.monthDetails.length > 0 && (
@@ -269,11 +294,14 @@ function AnnualOverview({ data }: { data: HistoryData }) {
                     ¥{projection.prevYearTotal.toLocaleString()}
                   </td>
                   <td className="py-2 px-2 text-right">
-                    {projDiff !== null && (
-                      <span className={projDiff >= 0 ? 'text-green-400' : 'text-red-400'}>
-                        {projDiff >= 0 ? '+' : ''}¥{projDiff.toLocaleString()}
-                      </span>
-                    )}
+                    {(() => {
+                      const projDiff = projection.projectedTotal - projection.prevYearTotal
+                      return (
+                        <span className={projDiff >= 0 ? 'text-green-400' : 'text-red-400'}>
+                          {projDiff >= 0 ? '+' : ''}¥{projDiff.toLocaleString()}
+                        </span>
+                      )
+                    })()}
                   </td>
                   <td className="py-2 px-2 text-right">
                     {projection.yoyProjectedGrowth !== null && (
@@ -574,10 +602,16 @@ function StaffHistory({ data }: { data: HistoryData }) {
 
   const maxSales = Math.max(...sorted.map(s => s.baseSales))
 
-  const prevLabel = data.staffPrevMonth ? formatMonth(data.staffPrevMonth) : '前々月'
+  // 月ラベル
+  const prevShort = data.staffPrevMonth ? formatShortMonth(data.staffPrevMonth) : '前々月'
+  const baseShort = data.staffBaseMonth ? formatShortMonth(data.staffBaseMonth) : '前月'
+  const currentShort = data.staffCurrentMonth ? formatShortMonth(data.staffCurrentMonth) : '今月'
   const baseLabel = data.staffBaseMonth ? formatMonth(data.staffBaseMonth) : '前月'
-  const currentLabel = data.staffCurrentMonth ? formatMonth(data.staffCurrentMonth) + ' 現状' : '今月'
   const hasCurrentMonth = !!data.staffCurrentMonth
+
+  const comparisonLabel = data.staffPrevMonth && data.staffBaseMonth
+    ? `${prevShort}▶${baseShort}`
+    : '前月比'
 
   return (
     <div className="bg-gray-800 rounded-xl p-4">
@@ -602,19 +636,25 @@ function StaffHistory({ data }: { data: HistoryData }) {
       </div>
 
       <p className="text-xs text-gray-500 mb-2">
-        {prevLabel} → {baseLabel}（順位基準）{hasCurrentMonth && <> → {currentLabel}</>}
+        {baseLabel}基準のランキング{hasCurrentMonth && <> ・ {currentShort}は進行中</>}
       </p>
 
       <div className="overflow-x-auto">
         <table className="w-full text-xs">
           <thead>
             <tr className="text-gray-500 border-b border-gray-700">
-              <th className="text-left py-2 px-1 w-6">順位</th>
+              <th className="text-left py-2 px-1 w-6">#</th>
               <th className="text-left py-2 px-1">スタッフ</th>
-              <th className="text-right py-2 px-1">{prevLabel}</th>
-              <th className="text-right py-2 px-1">{baseLabel}</th>
-              {hasCurrentMonth && <th className="text-right py-2 px-1">{currentLabel}</th>}
-              <th className="text-right py-2 px-1">前月比</th>
+              {hasCurrentMonth && (
+                <th className="text-right py-2 px-1">
+                  <span className="text-blue-300">{currentShort}現状</span>
+                </th>
+              )}
+              <th className="text-right py-2 px-1">
+                {baseShort}<span className="text-yellow-400">★</span>
+              </th>
+              <th className="text-right py-2 px-1">{prevShort}</th>
+              <th className="text-right py-2 px-1">{comparisonLabel}</th>
               <th className="py-2 px-1 w-16"></th>
             </tr>
           </thead>
@@ -623,7 +663,8 @@ function StaffHistory({ data }: { data: HistoryData }) {
               const barPct = maxSales > 0 ? (s.baseSales / maxSales) * 100 : 0
               const isExpanded = expandedStaff === s.staff
               const rank = salesRankMap.get(s.staff) ?? 0
-              const colSpan = hasCurrentMonth ? 8 : 7
+              const colSpan = hasCurrentMonth ? 7 : 6
+              const salesDiff = s.baseSales - s.prevSales
               return (
                 <tr key={s.staff} className="group">
                   <td colSpan={colSpan} className="p-0">
@@ -631,30 +672,43 @@ function StaffHistory({ data }: { data: HistoryData }) {
                       className="flex items-center border-b border-gray-700/50 hover:bg-gray-700/30 cursor-pointer py-2 px-1"
                       onClick={() => setExpandedStaff(isExpanded ? null : s.staff)}
                     >
+                      {/* 順位 */}
                       <span className={`w-6 text-right shrink-0 font-bold ${rank <= 3 ? 'text-yellow-400' : 'text-gray-500'}`}>
                         {rank}
                       </span>
+                      {/* スタッフ名 */}
                       <span className="text-gray-300 truncate flex-1 px-1 min-w-0">{s.staff}</span>
-                      <span className="text-gray-500 shrink-0 px-1 text-right w-20">
-                        {s.prevSales > 0 ? `¥${s.prevSales.toLocaleString()}` : '—'}
-                      </span>
-                      <span className="text-white font-bold shrink-0 px-1 text-right w-20">
-                        ¥{s.baseSales.toLocaleString()}
-                      </span>
+                      {/* 今月現状 (左) */}
                       {hasCurrentMonth && (
                         <span className="text-blue-300 shrink-0 px-1 text-right w-20">
                           {s.currentSales > 0 ? `¥${s.currentSales.toLocaleString()}` : '—'}
                         </span>
                       )}
-                      <span className="shrink-0 px-1 text-right w-16">
+                      {/* 前月・基準 (中) */}
+                      <span className="text-white font-bold shrink-0 px-1 text-right w-20">
+                        ¥{s.baseSales.toLocaleString()}
+                      </span>
+                      {/* 前々月 (右) */}
+                      <span className="text-gray-500 shrink-0 px-1 text-right w-20">
+                        {s.prevSales > 0 ? `¥${s.prevSales.toLocaleString()}` : '—'}
+                      </span>
+                      {/* 月対比 (率 + 金額) */}
+                      <span className="shrink-0 px-1 text-right w-24">
                         {s.growthRate !== null ? (
-                          <span className={s.growthRate >= 0 ? 'text-green-400' : 'text-red-400'}>
-                            {s.growthRate >= 0 ? '+' : ''}{s.growthRate.toFixed(1)}%
-                          </span>
+                          <div className="leading-tight">
+                            <span className={`${s.growthRate >= 0 ? 'text-green-400' : 'text-red-400'}`}>
+                              {s.growthRate >= 0 ? '+' : ''}{s.growthRate.toFixed(1)}%
+                            </span>
+                            <br />
+                            <span className={`text-[10px] ${salesDiff >= 0 ? 'text-green-400' : 'text-red-400'}`}>
+                              {salesDiff >= 0 ? '+' : ''}¥{salesDiff.toLocaleString()}
+                            </span>
+                          </div>
                         ) : (
                           <span className="text-gray-600">—</span>
                         )}
                       </span>
+                      {/* バー */}
                       <div className="w-16 shrink-0 px-1">
                         <div className="w-full h-2 bg-gray-700 rounded-full overflow-hidden">
                           <div className="h-full bg-blue-500 rounded-full" style={{ width: `${barPct}%` }} />
@@ -670,12 +724,15 @@ function StaffHistory({ data }: { data: HistoryData }) {
                             const prev = mi > 0 ? s.monthly[mi - 1] : null
                             const mg = prev && prev.sales > 0 ? ((m.sales - prev.sales) / prev.sales) * 100 : null
                             const md = prev ? m.sales - prev.sales : null
+                            const pLabel = prev ? formatShortMonth(prev.month) : ''
+                            const cLabel = formatShortMonth(m.month)
                             return (
                               <div key={m.month} className="bg-gray-800 rounded p-2">
                                 <p className="text-gray-500 text-xs">{formatMonth(m.month)}</p>
                                 <p className="text-white font-bold text-sm">¥{m.sales.toLocaleString()}</p>
                                 {md !== null && (
                                   <p className={`text-[10px] ${md >= 0 ? 'text-green-400' : 'text-red-400'}`}>
+                                    <span className="text-gray-600">{pLabel}▶{cLabel}</span>{' '}
                                     {md >= 0 ? '+' : ''}¥{md.toLocaleString()}
                                   </p>
                                 )}
@@ -706,6 +763,11 @@ function StaffHistory({ data }: { data: HistoryData }) {
 function formatMonth(m: string): string {
   const [y, mo] = m.split('-')
   return `${y}年${parseInt(mo)}月`
+}
+
+function formatShortMonth(m: string): string {
+  const [, mo] = m.split('-')
+  return `${parseInt(mo)}月`
 }
 
 function shortenStoreName(name: string): string {

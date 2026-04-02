@@ -176,6 +176,16 @@ export function setTarget(year: number, month: number, target: number) {
   ).run(year, month, target)
 }
 
+/** 年間の目標合計 (設定済み月のみ合算) */
+export function getAnnualTarget(year: number): number | null {
+  const db = getDB()
+  const row = db.prepare(
+    'SELECT SUM(target) as total, COUNT(*) as cnt FROM monthly_targets WHERE year=?'
+  ).get(year) as { total: number | null; cnt: number } | undefined
+  if (!row || row.cnt === 0) return null
+  return row.total
+}
+
 // ─── Scraped data functions ─────────────────────────────────────────────────
 
 export function upsertStoreDailySales(

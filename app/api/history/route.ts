@@ -3,6 +3,7 @@ import {
   getMonthlyTotalSales,
   getMonthlyStoreSales,
   getMonthlyStaffSales,
+  getAnnualTarget,
 } from '@/lib/db'
 import { normalizeStaffName } from '@/lib/staffNormalize'
 
@@ -37,6 +38,8 @@ interface Projection {
   prevYearTotal: number
   yoyProjectedGrowth: number | null     // 着地予測の前年比
   currentMonthEstimate: number | null   // 今月着地予測
+  conservativeTotal: number             // 堅実予測（年間）
+  annualTarget: number | null           // 年間目標
 }
 
 export async function GET() {
@@ -305,6 +308,12 @@ export async function GET() {
 
       const prevYearTotal = Array.from(prevYearData.values()).reduce((s, v) => s + v.sales, 0)
 
+      // 堅実予測: 標準予測の95%
+      const conservativeTotal = Math.round(projectedTotal * 0.95)
+
+      // 年間目標
+      const annualTarget = getAnnualTarget(currentYear)
+
       projection = {
         currentYear,
         projectedTotal,
@@ -319,6 +328,8 @@ export async function GET() {
           ? ((projectedTotal - prevYearTotal) / prevYearTotal) * 100
           : null,
         currentMonthEstimate,
+        conservativeTotal,
+        annualTarget,
       }
     }
   }
