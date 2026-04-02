@@ -213,6 +213,35 @@ export function setAnnualTarget(year: number, target: number) {
   ).run(year, target)
 }
 
+/** 指定年の月別目標を一括取得 (month 1-12) */
+export function getMonthlyTargets(year: number): Record<number, number> {
+  const db = getDB()
+  const rows = db.prepare(
+    'SELECT month, target FROM monthly_targets WHERE year=? AND month BETWEEN 1 AND 12'
+  ).all(year) as { month: number; target: number }[]
+  const result: Record<number, number> = {}
+  for (const r of rows) result[r.month] = r.target
+  return result
+}
+
+/** 月別目標を一括保存 */
+export function setMonthlyTargets(year: number, targets: Record<number, number>) {
+  const db = getDB()
+  const stmt = db.prepare(
+    `INSERT INTO monthly_targets(year, month, target) VALUES(?, ?, ?)
+     ON CONFLICT(year, month) DO UPDATE SET target=excluded.target`
+  )
+  const tx = db.transaction(() => {
+    for (const [month, target] of Object.entries(targets)) {
+      const m = parseInt(month)
+      if (m >= 1 && m <= 12 && target > 0) {
+        stmt.run(year, m, Math.round(target))
+      }
+    }
+  })
+  tx()
+}
+
 // ─── 出店計画 ──────────────────────────────────────────────────────────────
 
 export type StoreOpeningPlan = {
