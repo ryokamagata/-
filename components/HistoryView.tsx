@@ -645,38 +645,67 @@ function StoreHistory({
 
 function StaffHistory({ data }: { data: HistoryData }) {
   const [expandedStaff, setExpandedStaff] = useState<string | null>(null)
-  const [sortKey, setSortKey] = useState<'sales' | 'growth'>('sales')
+  const [sortKey, setSortKey] = useState<'current' | 'sales' | 'growth'>('current')
 
   if (data.staffSummary.length === 0) {
     return <p className="text-gray-500 text-sm text-center py-4">スタッフデータがありません</p>
   }
 
-  const bySales = [...data.staffSummary].sort((a, b) => b.baseSales - a.baseSales)
-  const salesRankMap = new Map<string, number>()
-  bySales.forEach((s, i) => salesRankMap.set(s.staff, i + 1))
+  const hasCurrentMonth = !!data.staffCurrentMonth
+
+  // 前月売上ランキング
+  const byBaseSales = [...data.staffSummary].sort((a, b) => b.baseSales - a.baseSales)
+  const baseRankMap = new Map<string, number>()
+  byBaseSales.forEach((s, i) => baseRankMap.set(s.staff, i + 1))
+
+  // 今月売上ランキング
+  const byCurrentSales = [...data.staffSummary]
+    .filter(s => s.currentSales > 0)
+    .sort((a, b) => b.currentSales - a.currentSales)
+  const currentRankMap = new Map<string, number>()
+  byCurrentSales.forEach((s, i) => currentRankMap.set(s.staff, i + 1))
+
+  // ソートキーがcurrentだけど今月データがなければsalesにフォールバック
+  const effectiveSortKey = sortKey === 'current' && !hasCurrentMonth ? 'sales' : sortKey
 
   const sorted = [...data.staffSummary].sort((a, b) => {
-    if (sortKey === 'growth') {
+    if (effectiveSortKey === 'growth') {
       const aG = a.growthRate ?? -Infinity
       const bG = b.growthRate ?? -Infinity
       return bG - aG
     }
+    if (effectiveSortKey === 'current') {
+      // 今月売上0のスタッフは下に
+      if (a.currentSales === 0 && b.currentSales === 0) return b.baseSales - a.baseSales
+      if (a.currentSales === 0) return 1
+      if (b.currentSales === 0) return -1
+      return b.currentSales - a.currentSales
+    }
     return b.baseSales - a.baseSales
   })
 
-  const maxSales = Math.max(...sorted.map(s => s.baseSales))
+  const maxSales = effectiveSortKey === 'current'
+    ? Math.max(...sorted.map(s => s.currentSales), 1)
+    : Math.max(...sorted.map(s => s.baseSales), 1)
 
   const prevShort = data.staffPrevMonth ? formatShortMonth(data.staffPrevMonth) : '前々月'
   const baseShort = data.staffBaseMonth ? formatShortMonth(data.staffBaseMonth) : '前月'
   const currentShort = data.staffCurrentMonth ? formatShortMonth(data.staffCurrentMonth) : '今月'
   const baseLabel = data.staffBaseMonth ? formatMonth(data.staffBaseMonth) : '前月'
-  const hasCurrentMonth = !!data.staffCurrentMonth
+  const currentLabel = data.staffCurrentMonth ? formatMonth(data.staffCurrentMonth) : '今月'
 
   const comparisonLabel = data.staffPrevMonth && data.staffBaseMonth
     ? `${prevShort}▶${baseShort}`
     : '前月比'
 
   const colCount = hasCurrentMonth ? 7 : 6
+
+  // ランキング基準の表示テキスト
+  const rankBasisLabel = effectiveSortKey === 'current'
+    ? `${currentLabel}現状基準`
+    : effectiveSortKey === 'growth'
+    ? '上昇率基準'
+    : `${baseLabel}基準`
 
   return (
     <div className="bg-gray-800 rounded-xl p-4">
@@ -685,11 +714,19 @@ function StaffHistory({ data }: { data: HistoryData }) {
           スタッフ別 売上順位 & 上昇率
         </h3>
         <div className="flex gap-1">
+          {hasCurrentMonth && (
+            <button
+              onClick={() => setSortKey('current')}
+              className={`text-xs px-2 py-1 rounded ${sortKey === 'current' ? 'bg-blue-600 text-white' : 'bg-gray-700 text-gray-400'}`}
+            >
+              {currentShort}順
+            </button>
+          )}
           <button
             onClick={() => setSortKey('sales')}
             className={`text-xs px-2 py-1 rounded ${sortKey === 'sales' ? 'bg-blue-600 text-white' : 'bg-gray-700 text-gray-400'}`}
           >
-            売上順
+            {baseShort}順
           </button>
           <button
             onClick={() => setSortKey('growth')}
@@ -701,7 +738,7 @@ function StaffHistory({ data }: { data: HistoryData }) {
       </div>
 
       <p className="text-xs text-gray-500 mb-2">
-        {baseLabel}基準のランキング{hasCurrentMonth && <> ・ {currentShort}は進行中</>}
+        {rankBasisLabel}のランキング{hasCurrentMonth && effectiveSortKey !== 'current' && <> ・ {currentShort}は進行中</>}
       </p>
 
       <div className="overflow-x-auto">
@@ -720,9 +757,13 @@ function StaffHistory({ data }: { data: HistoryData }) {
               <th className="text-right py-2 px-1">#</th>
               <th className="text-left py-2 px-1">スタッフ</th>
               {hasCurrentMonth && (
-                <th className="text-right py-2 px-1 text-blue-300">{currentShort}現状</th>
+                <th className={`text-right py-2 px-1 ${effectiveSortKey === 'current' ? 'text-blue-300' : 'text-gray-500'}`}>
+                  {currentShort}現状{effectiveSortKey === 'current' && <span className="text-yellow-400">★</span>}
+                </th>
               )}
-              <th className="text-right py-2 px-1">{baseShort}<span className="text-yellow-400">★</span></th>
+              <th className={`text-right py-2 px-1 ${effectiveSortKey === 'sales' ? 'text-white' : 'text-gray-500'}`}>
+                {baseShort}{effectiveSortKey === 'sales' && <span className="text-yellow-400">★</span>}
+              </th>
               <th className="text-right py-2 px-1">{prevShort}</th>
               <th className="text-right py-2 px-1">{comparisonLabel}</th>
               <th className="py-2 px-1"></th>
@@ -730,9 +771,14 @@ function StaffHistory({ data }: { data: HistoryData }) {
           </thead>
           <tbody>
             {sorted.map((s) => {
-              const barPct = maxSales > 0 ? (s.baseSales / maxSales) * 100 : 0
+              const barValue = effectiveSortKey === 'current' ? s.currentSales : s.baseSales
+              const barPct = maxSales > 0 ? (barValue / maxSales) * 100 : 0
               const isExpanded = expandedStaff === s.staff
-              const rank = salesRankMap.get(s.staff) ?? 0
+              const rank = effectiveSortKey === 'current'
+                ? (currentRankMap.get(s.staff) ?? '—')
+                : effectiveSortKey === 'sales'
+                ? (baseRankMap.get(s.staff) ?? 0)
+                : (baseRankMap.get(s.staff) ?? 0)
               const salesDiff = s.baseSales - s.prevSales
               return (
                 <Fragment key={s.staff}>
@@ -741,15 +787,15 @@ function StaffHistory({ data }: { data: HistoryData }) {
                     onClick={() => setExpandedStaff(isExpanded ? null : s.staff)}
                   >
                     <td className="py-2 px-1 text-right">
-                      <span className={`font-bold ${rank <= 3 ? 'text-yellow-400' : 'text-gray-500'}`}>{rank}</span>
+                      <span className={`font-bold ${typeof rank === 'number' && rank <= 3 ? 'text-yellow-400' : 'text-gray-500'}`}>{rank}</span>
                     </td>
                     <td className="py-2 px-1 text-gray-300 truncate">{s.staff}</td>
                     {hasCurrentMonth && (
-                      <td className="py-2 px-1 text-right text-blue-300 tabular-nums">
+                      <td className={`py-2 px-1 text-right tabular-nums ${effectiveSortKey === 'current' ? 'text-blue-300 font-bold' : 'text-blue-300'}`}>
                         {s.currentSales > 0 ? `¥${s.currentSales.toLocaleString()}` : '—'}
                       </td>
                     )}
-                    <td className="py-2 px-1 text-right text-white font-bold tabular-nums">
+                    <td className={`py-2 px-1 text-right tabular-nums ${effectiveSortKey === 'sales' ? 'text-white font-bold' : 'text-gray-400'}`}>
                       ¥{s.baseSales.toLocaleString()}
                     </td>
                     <td className="py-2 px-1 text-right text-gray-500 tabular-nums">
