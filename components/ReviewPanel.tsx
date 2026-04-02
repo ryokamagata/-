@@ -20,14 +20,14 @@ export default function ReviewPanel({ data }: { data: DashboardData }) {
         onClick={() => setOpen(!open)}
         className="w-full flex items-center justify-between p-4 hover:bg-gray-700/50 transition-colors"
       >
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-1.5 sm:gap-2">
           <span className="text-sm font-medium text-gray-200">
             改善レビュー
           </span>
           <span className="text-xs text-gray-500">
             ({data.month}月{data.today}日時点)
           </span>
-          <div className="flex items-center gap-1.5 ml-2">
+          <div className="flex items-center gap-1.5">
             {warnCount > 0 && (
               <span className="text-xs bg-amber-900/50 text-amber-400 px-1.5 py-0.5 rounded">
                 要対応 {warnCount}

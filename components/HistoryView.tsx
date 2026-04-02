@@ -205,7 +205,7 @@ function AnnualOverview({ data, onRefresh }: { data: HistoryData; onRefresh: () 
           </div>
 
           {/* 年間目標入力 */}
-          <div className="flex items-center gap-2 mb-3 bg-gray-800/60 rounded-lg p-2">
+          <div className="flex flex-wrap items-center gap-1.5 sm:gap-2 mb-3 bg-gray-800/60 rounded-lg p-2">
             <span className="text-xs text-yellow-400 whitespace-nowrap">年間目標</span>
             <span className="text-xs text-gray-500">¥</span>
             <input
@@ -215,7 +215,7 @@ function AnnualOverview({ data, onRefresh }: { data: HistoryData; onRefresh: () 
               onKeyDown={(e) => { if (e.key === 'Enter') saveAnnualTarget() }}
               placeholder="10億 or 1,000,000,000"
               className="bg-gray-700 border border-gray-600 rounded px-2 py-1 text-white text-xs
-                         w-36 focus:border-blue-400 focus:outline-none focus:ring-1 focus:ring-blue-400"
+                         w-28 sm:w-36 focus:border-blue-400 focus:outline-none focus:ring-1 focus:ring-blue-400"
             />
             <button
               onClick={saveAnnualTarget}
@@ -233,11 +233,11 @@ function AnnualOverview({ data, onRefresh }: { data: HistoryData; onRefresh: () 
           </div>
 
           {/* 3パターン表示 */}
-          <div className="grid grid-cols-3 gap-2 mb-3">
+          <div className="grid grid-cols-3 gap-1.5 sm:gap-2 mb-3">
             {/* 高め見込み */}
-            <div className="bg-emerald-900/20 rounded-lg p-3 text-center border border-emerald-700/30">
-              <p className="text-[10px] text-emerald-400 mb-1">高め見込み</p>
-              <p className="text-sm font-bold text-emerald-400">
+            <div className="bg-emerald-900/20 rounded-lg p-2 sm:p-3 text-center border border-emerald-700/30">
+              <p className="text-[10px] text-emerald-400 mb-0.5">高め見込み</p>
+              <p className="text-xs sm:text-sm font-bold text-emerald-400">
                 {formatOkuMan(projection.optimisticTotal)}
               </p>
               {projection.annualTarget && (
@@ -247,9 +247,9 @@ function AnnualOverview({ data, onRefresh }: { data: HistoryData; onRefresh: () 
               )}
             </div>
             {/* 着地予測（標準） */}
-            <div className="bg-blue-900/30 rounded-lg p-3 text-center border border-blue-600/30">
-              <p className="text-[10px] text-blue-300 mb-1">着地予測</p>
-              <p className="text-sm font-bold text-white">
+            <div className="bg-blue-900/30 rounded-lg p-2 sm:p-3 text-center border border-blue-600/30">
+              <p className="text-[10px] text-blue-300 mb-0.5">着地予測</p>
+              <p className="text-xs sm:text-sm font-bold text-white">
                 {formatOkuMan(projection.projectedTotal)}
               </p>
               {projection.annualTarget && (
@@ -259,9 +259,9 @@ function AnnualOverview({ data, onRefresh }: { data: HistoryData; onRefresh: () 
               )}
             </div>
             {/* 堅実ライン */}
-            <div className="bg-gray-800/60 rounded-lg p-3 text-center border border-gray-700/50">
-              <p className="text-[10px] text-gray-400 mb-1">堅実ライン</p>
-              <p className="text-sm font-bold text-gray-300">
+            <div className="bg-gray-800/60 rounded-lg p-2 sm:p-3 text-center border border-gray-700/50">
+              <p className="text-[10px] text-gray-400 mb-0.5">堅実ライン</p>
+              <p className="text-xs sm:text-sm font-bold text-gray-300">
                 {formatOkuMan(projection.conservativeTotal)}
               </p>
               {projection.annualTarget && (
@@ -296,16 +296,16 @@ function AnnualOverview({ data, onRefresh }: { data: HistoryData; onRefresh: () 
           <h3 className="text-sm font-medium text-gray-300 mb-3">
             {projection.currentYear}年 月別内訳（着地予測）
           </h3>
-          <div className="overflow-x-auto">
+          <div className="overflow-x-auto -mx-4 px-4 sm:mx-0 sm:px-0">
             <table className="w-full text-xs">
               <thead>
                 <tr className="text-gray-500 border-b border-gray-700">
-                  <th className="text-left py-2 px-2">月</th>
-                  <th className="text-right py-2 px-2">売上</th>
-                  <th className="text-right py-2 px-2">前年同月</th>
-                  <th className="text-right py-2 px-2">差額</th>
-                  <th className="text-right py-2 px-2">前年比</th>
-                  <th className="py-2 px-2 w-24"></th>
+                  <th className="text-left py-2 px-1 sm:px-2">月</th>
+                  <th className="text-right py-2 px-1 sm:px-2">売上</th>
+                  <th className="text-right py-2 px-1 sm:px-2 hidden sm:table-cell">前年同月</th>
+                  <th className="text-right py-2 px-1 sm:px-2 hidden sm:table-cell">差額</th>
+                  <th className="text-right py-2 px-1 sm:px-2">前年比</th>
+                  <th className="py-2 px-1 sm:px-2 w-16 sm:w-24"></th>
                 </tr>
               </thead>
               <tbody>
@@ -326,19 +326,19 @@ function AnnualOverview({ data, onRefresh }: { data: HistoryData; onRefresh: () 
                         d.isProjected ? 'opacity-60' : 'hover:bg-gray-700/30'
                       }`}
                     >
-                      <td className="py-2 px-2 text-gray-300 font-medium">
+                      <td className="py-1.5 sm:py-2 px-1 sm:px-2 text-gray-300 font-medium whitespace-nowrap">
                         {d.month}月
                         {d.isProjected && (
-                          <span className="text-[10px] text-blue-400 ml-1">予測</span>
+                          <span className="text-[10px] text-blue-400 ml-0.5 sm:ml-1">予測</span>
                         )}
                       </td>
-                      <td className={`py-2 px-2 text-right font-bold ${d.isProjected ? 'text-blue-300' : 'text-white'}`}>
+                      <td className={`py-1.5 sm:py-2 px-1 sm:px-2 text-right font-bold whitespace-nowrap ${d.isProjected ? 'text-blue-300' : 'text-white'}`}>
                         ¥{d.sales.toLocaleString()}
                       </td>
-                      <td className="py-2 px-2 text-right text-gray-500">
+                      <td className="py-1.5 sm:py-2 px-1 sm:px-2 text-right text-gray-500 hidden sm:table-cell">
                         {prevSales > 0 ? `¥${prevSales.toLocaleString()}` : '—'}
                       </td>
-                      <td className="py-2 px-2 text-right">
+                      <td className="py-1.5 sm:py-2 px-1 sm:px-2 text-right hidden sm:table-cell">
                         {diff !== null ? (
                           <span className={diff >= 0 ? 'text-green-400' : 'text-red-400'}>
                             {diff >= 0 ? '+' : ''}¥{diff.toLocaleString()}
@@ -347,7 +347,7 @@ function AnnualOverview({ data, onRefresh }: { data: HistoryData; onRefresh: () 
                           <span className="text-gray-600">—</span>
                         )}
                       </td>
-                      <td className="py-2 px-2 text-right">
+                      <td className="py-1.5 sm:py-2 px-1 sm:px-2 text-right">
                         {yoy !== null ? (
                           <span className={yoy >= 0 ? 'text-green-400' : 'text-red-400'}>
                             {yoy >= 0 ? '+' : ''}{yoy.toFixed(1)}%
@@ -356,7 +356,7 @@ function AnnualOverview({ data, onRefresh }: { data: HistoryData; onRefresh: () 
                           <span className="text-gray-600">—</span>
                         )}
                       </td>
-                      <td className="py-2 px-2">
+                      <td className="py-1.5 sm:py-2 px-1 sm:px-2">
                         <div className="w-full h-2 bg-gray-700 rounded-full overflow-hidden">
                           <div
                             className={`h-full rounded-full ${d.isProjected ? 'bg-blue-500/50' : 'bg-blue-500'}`}
@@ -369,14 +369,14 @@ function AnnualOverview({ data, onRefresh }: { data: HistoryData; onRefresh: () 
                 })}
                 {/* 年間合計行 */}
                 <tr className="border-t-2 border-gray-600 font-bold">
-                  <td className="py-2 px-2 text-yellow-400">年間合計</td>
-                  <td className="py-2 px-2 text-right text-yellow-400">
+                  <td className="py-1.5 sm:py-2 px-1 sm:px-2 text-yellow-400">年間合計</td>
+                  <td className="py-1.5 sm:py-2 px-1 sm:px-2 text-right text-yellow-400 whitespace-nowrap">
                     ¥{projection.projectedTotal.toLocaleString()}
                   </td>
-                  <td className="py-2 px-2 text-right text-gray-400">
+                  <td className="py-1.5 sm:py-2 px-1 sm:px-2 text-right text-gray-400 hidden sm:table-cell">
                     ¥{projection.prevYearTotal.toLocaleString()}
                   </td>
-                  <td className="py-2 px-2 text-right">
+                  <td className="py-1.5 sm:py-2 px-1 sm:px-2 text-right hidden sm:table-cell">
                     {(() => {
                       const projDiff = projection.projectedTotal - projection.prevYearTotal
                       return (
@@ -386,7 +386,7 @@ function AnnualOverview({ data, onRefresh }: { data: HistoryData; onRefresh: () 
                       )
                     })()}
                   </td>
-                  <td className="py-2 px-2 text-right">
+                  <td className="py-1.5 sm:py-2 px-1 sm:px-2 text-right">
                     {projection.yoyProjectedGrowth !== null && (
                       <span className={projection.yoyProjectedGrowth >= 0 ? 'text-green-400' : 'text-red-400'}>
                         {projection.yoyProjectedGrowth >= 0 ? '+' : ''}{projection.yoyProjectedGrowth.toFixed(1)}%
@@ -407,14 +407,14 @@ function AnnualOverview({ data, onRefresh }: { data: HistoryData; onRefresh: () 
           <h3 className="text-sm font-medium text-gray-300 mb-3">
             {prevYearSummary.year}年 月別内訳
           </h3>
-          <div className="overflow-x-auto">
+          <div className="overflow-x-auto -mx-4 px-4 sm:mx-0 sm:px-0">
             <table className="w-full text-xs">
               <thead>
                 <tr className="text-gray-500 border-b border-gray-700">
-                  <th className="text-left py-2 px-2">月</th>
-                  <th className="text-right py-2 px-2">売上</th>
-                  <th className="text-right py-2 px-2">客数</th>
-                  <th className="py-2 px-2 w-28"></th>
+                  <th className="text-left py-2 px-1 sm:px-2">月</th>
+                  <th className="text-right py-2 px-1 sm:px-2">売上</th>
+                  <th className="text-right py-2 px-1 sm:px-2">客数</th>
+                  <th className="py-2 px-1 sm:px-2 w-16 sm:w-28"></th>
                 </tr>
               </thead>
               <tbody>
@@ -423,10 +423,10 @@ function AnnualOverview({ data, onRefresh }: { data: HistoryData; onRefresh: () 
                   const barPct = maxSales > 0 ? (d.sales / maxSales) * 100 : 0
                   return (
                     <tr key={d.month} className="border-b border-gray-700/50 hover:bg-gray-700/30">
-                      <td className="py-2 px-2 text-gray-300 font-medium">{d.month}月</td>
-                      <td className="py-2 px-2 text-right text-white font-bold">¥{d.sales.toLocaleString()}</td>
-                      <td className="py-2 px-2 text-right text-gray-400">{d.customers.toLocaleString()}人</td>
-                      <td className="py-2 px-2">
+                      <td className="py-1.5 sm:py-2 px-1 sm:px-2 text-gray-300 font-medium">{d.month}月</td>
+                      <td className="py-1.5 sm:py-2 px-1 sm:px-2 text-right text-white font-bold whitespace-nowrap">¥{d.sales.toLocaleString()}</td>
+                      <td className="py-1.5 sm:py-2 px-1 sm:px-2 text-right text-gray-400">{d.customers.toLocaleString()}人</td>
+                      <td className="py-1.5 sm:py-2 px-1 sm:px-2">
                         <div className="w-full h-2 bg-gray-700 rounded-full overflow-hidden">
                           <div className="h-full bg-blue-500 rounded-full" style={{ width: `${barPct}%` }} />
                         </div>
@@ -435,9 +435,9 @@ function AnnualOverview({ data, onRefresh }: { data: HistoryData; onRefresh: () 
                   )
                 })}
                 <tr className="border-t-2 border-gray-600 font-bold">
-                  <td className="py-2 px-2 text-yellow-400">年間合計</td>
-                  <td className="py-2 px-2 text-right text-yellow-400">¥{prevYearSummary.total.toLocaleString()}</td>
-                  <td className="py-2 px-2 text-right text-gray-400">{prevYearSummary.customers.toLocaleString()}人</td>
+                  <td className="py-1.5 sm:py-2 px-1 sm:px-2 text-yellow-400">年間合計</td>
+                  <td className="py-1.5 sm:py-2 px-1 sm:px-2 text-right text-yellow-400 whitespace-nowrap">¥{prevYearSummary.total.toLocaleString()}</td>
+                  <td className="py-1.5 sm:py-2 px-1 sm:px-2 text-right text-gray-400">{prevYearSummary.customers.toLocaleString()}人</td>
                   <td></td>
                 </tr>
               </tbody>
@@ -478,19 +478,19 @@ function TotalHistory({ data, onRefresh }: { data: HistoryData; onRefresh: () =>
         onRefresh={onRefresh}
       />
 
-      <div className="bg-gray-800 rounded-xl p-4">
+      <div className="bg-gray-800 rounded-xl p-3 sm:p-4">
         <h3 className="text-sm font-medium text-gray-300 mb-3">全店舗合計 月次推移</h3>
-        <div className="overflow-x-auto">
+        <div className="overflow-x-auto -mx-3 px-3 sm:mx-0 sm:px-0">
           <table className="w-full text-xs">
             <thead>
               <tr className="text-gray-500 border-b border-gray-700">
-                <th className="text-left py-2 px-2">月</th>
-                <th className="text-right py-2 px-2">売上</th>
-                <th className="text-right py-2 px-2">客数</th>
-                <th className="text-right py-2 px-2">客単価</th>
-                <th className="text-right py-2 px-2">差額</th>
-                <th className="text-right py-2 px-2">前月比</th>
-                <th className="py-2 px-2 w-28"></th>
+                <th className="text-left py-2 px-1 sm:px-2">月</th>
+                <th className="text-right py-2 px-1 sm:px-2">売上</th>
+                <th className="text-right py-2 px-1 sm:px-2 hidden sm:table-cell">客数</th>
+                <th className="text-right py-2 px-1 sm:px-2 hidden sm:table-cell">客単価</th>
+                <th className="text-right py-2 px-1 sm:px-2 hidden sm:table-cell">差額</th>
+                <th className="text-right py-2 px-1 sm:px-2">前月比</th>
+                <th className="py-2 px-1 sm:px-2 w-16 sm:w-28"></th>
               </tr>
             </thead>
             <tbody>
@@ -502,11 +502,11 @@ function TotalHistory({ data, onRefresh }: { data: HistoryData; onRefresh: () =>
                 const barPct = maxSales > 0 ? (m.sales / maxSales) * 100 : 0
                 return (
                   <tr key={m.month} className="border-b border-gray-700/50 hover:bg-gray-700/30">
-                    <td className="py-2 px-2 text-gray-300 font-medium">{formatMonth(m.month)}</td>
-                    <td className="py-2 px-2 text-right text-white font-bold">¥{m.sales.toLocaleString()}</td>
-                    <td className="py-2 px-2 text-right text-gray-400">{m.customers.toLocaleString()}人</td>
-                    <td className="py-2 px-2 text-right text-gray-400">¥{avgSpend.toLocaleString()}</td>
-                    <td className="py-2 px-2 text-right">
+                    <td className="py-1.5 sm:py-2 px-1 sm:px-2 text-gray-300 font-medium whitespace-nowrap">{formatMonth(m.month)}</td>
+                    <td className="py-1.5 sm:py-2 px-1 sm:px-2 text-right text-white font-bold whitespace-nowrap">¥{m.sales.toLocaleString()}</td>
+                    <td className="py-1.5 sm:py-2 px-1 sm:px-2 text-right text-gray-400 hidden sm:table-cell">{m.customers.toLocaleString()}人</td>
+                    <td className="py-1.5 sm:py-2 px-1 sm:px-2 text-right text-gray-400 hidden sm:table-cell">¥{avgSpend.toLocaleString()}</td>
+                    <td className="py-1.5 sm:py-2 px-1 sm:px-2 text-right hidden sm:table-cell">
                       {diff !== null ? (
                         <span className={diff >= 0 ? 'text-green-400' : 'text-red-400'}>
                           {diff >= 0 ? '+' : ''}¥{diff.toLocaleString()}
@@ -515,7 +515,7 @@ function TotalHistory({ data, onRefresh }: { data: HistoryData; onRefresh: () =>
                         <span className="text-gray-600">—</span>
                       )}
                     </td>
-                    <td className="py-2 px-2 text-right">
+                    <td className="py-1.5 sm:py-2 px-1 sm:px-2 text-right">
                       {growth !== null ? (
                         <span className={growth >= 0 ? 'text-green-400' : 'text-red-400'}>
                           {growth >= 0 ? '+' : ''}{growth.toFixed(1)}%
@@ -524,7 +524,7 @@ function TotalHistory({ data, onRefresh }: { data: HistoryData; onRefresh: () =>
                         <span className="text-gray-600">—</span>
                       )}
                     </td>
-                    <td className="py-2 px-2">
+                    <td className="py-1.5 sm:py-2 px-1 sm:px-2">
                       <div className="w-full h-2 bg-gray-700 rounded-full overflow-hidden">
                         <div className="h-full bg-blue-500 rounded-full" style={{ width: `${barPct}%` }} />
                       </div>
@@ -601,24 +601,24 @@ function StoreHistory({
         </div>
       </div>
 
-      <div className="bg-gray-800 rounded-xl p-4">
+      <div className="bg-gray-800 rounded-xl p-3 sm:p-4">
         <h3 className="text-sm font-medium text-gray-300 mb-3">
           {selectedStore === 'all' ? '全店舗合計' : shortenStoreName(selectedStore)} 月次推移
         </h3>
         {storeMonthlyData.length === 0 ? (
           <p className="text-gray-500 text-sm text-center py-4">データがありません</p>
         ) : (
-          <div className="overflow-x-auto">
+          <div className="overflow-x-auto -mx-3 px-3 sm:mx-0 sm:px-0">
             <table className="w-full text-xs">
               <thead>
                 <tr className="text-gray-500 border-b border-gray-700">
-                  <th className="text-left py-2 px-2">月</th>
-                  <th className="text-right py-2 px-2">売上</th>
-                  <th className="text-right py-2 px-2">客数</th>
-                  <th className="text-right py-2 px-2">客単価</th>
-                  <th className="text-right py-2 px-2">差額</th>
-                  <th className="text-right py-2 px-2">前月比</th>
-                  <th className="py-2 px-2 w-28"></th>
+                  <th className="text-left py-2 px-1 sm:px-2">月</th>
+                  <th className="text-right py-2 px-1 sm:px-2">売上</th>
+                  <th className="text-right py-2 px-1 sm:px-2 hidden sm:table-cell">客数</th>
+                  <th className="text-right py-2 px-1 sm:px-2 hidden sm:table-cell">客単価</th>
+                  <th className="text-right py-2 px-1 sm:px-2 hidden sm:table-cell">差額</th>
+                  <th className="text-right py-2 px-1 sm:px-2">前月比</th>
+                  <th className="py-2 px-1 sm:px-2 w-16 sm:w-28"></th>
                 </tr>
               </thead>
               <tbody>
@@ -630,11 +630,11 @@ function StoreHistory({
                   const barPct = maxSales > 0 ? (m.sales / maxSales) * 100 : 0
                   return (
                     <tr key={m.month} className="border-b border-gray-700/50 hover:bg-gray-700/30">
-                      <td className="py-2 px-2 text-gray-300 font-medium">{formatMonth(m.month)}</td>
-                      <td className="py-2 px-2 text-right text-white font-bold">¥{m.sales.toLocaleString()}</td>
-                      <td className="py-2 px-2 text-right text-gray-400">{m.customers.toLocaleString()}人</td>
-                      <td className="py-2 px-2 text-right text-gray-400">¥{avgSpend.toLocaleString()}</td>
-                      <td className="py-2 px-2 text-right">
+                      <td className="py-1.5 sm:py-2 px-1 sm:px-2 text-gray-300 font-medium whitespace-nowrap">{formatMonth(m.month)}</td>
+                      <td className="py-1.5 sm:py-2 px-1 sm:px-2 text-right text-white font-bold whitespace-nowrap">¥{m.sales.toLocaleString()}</td>
+                      <td className="py-1.5 sm:py-2 px-1 sm:px-2 text-right text-gray-400 hidden sm:table-cell">{m.customers.toLocaleString()}人</td>
+                      <td className="py-1.5 sm:py-2 px-1 sm:px-2 text-right text-gray-400 hidden sm:table-cell">¥{avgSpend.toLocaleString()}</td>
+                      <td className="py-1.5 sm:py-2 px-1 sm:px-2 text-right hidden sm:table-cell">
                         {diff !== null ? (
                           <span className={diff >= 0 ? 'text-green-400' : 'text-red-400'}>
                             {diff >= 0 ? '+' : ''}¥{diff.toLocaleString()}
@@ -643,7 +643,7 @@ function StoreHistory({
                           <span className="text-gray-600">—</span>
                         )}
                       </td>
-                      <td className="py-2 px-2 text-right">
+                      <td className="py-1.5 sm:py-2 px-1 sm:px-2 text-right">
                         {growth !== null ? (
                           <span className={growth >= 0 ? 'text-green-400' : 'text-red-400'}>
                             {growth >= 0 ? '+' : ''}{growth.toFixed(1)}%
@@ -652,7 +652,7 @@ function StoreHistory({
                           <span className="text-gray-600">—</span>
                         )}
                       </td>
-                      <td className="py-2 px-2">
+                      <td className="py-1.5 sm:py-2 px-1 sm:px-2">
                         <div className="w-full h-2 bg-gray-700 rounded-full overflow-hidden">
                           <div className="h-full bg-blue-500 rounded-full" style={{ width: `${barPct}%` }} />
                         </div>
@@ -736,8 +736,8 @@ function StaffHistory({ data }: { data: HistoryData }) {
     : `${baseLabel}基準`
 
   return (
-    <div className="bg-gray-800 rounded-xl p-4">
-      <div className="flex items-center justify-between mb-3">
+    <div className="bg-gray-800 rounded-xl p-3 sm:p-4">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-3">
         <h3 className="text-sm font-medium text-gray-300">
           スタッフ別 売上順位 & 上昇率
         </h3>
@@ -769,32 +769,23 @@ function StaffHistory({ data }: { data: HistoryData }) {
         {rankBasisLabel}のランキング{hasCurrentMonth && effectiveSortKey !== 'current' && <> ・ {currentShort}は進行中</>}
       </p>
 
-      <div className="overflow-x-auto">
-        <table className="w-full text-xs table-fixed">
-          <colgroup>
-            <col style={{ width: '28px' }} />
-            <col />
-            {hasCurrentMonth && <col style={{ width: '90px' }} />}
-            <col style={{ width: '100px' }} />
-            <col style={{ width: '90px' }} />
-            <col style={{ width: '90px' }} />
-            <col style={{ width: '56px' }} />
-          </colgroup>
+      <div className="overflow-x-auto -mx-3 px-3 sm:mx-0 sm:px-0">
+        <table className="w-full text-xs">
           <thead>
             <tr className="text-gray-500 border-b border-gray-700">
-              <th className="text-right py-2 px-1">#</th>
+              <th className="text-right py-2 px-1 w-6 sm:w-7">#</th>
               <th className="text-left py-2 px-1">スタッフ</th>
               {hasCurrentMonth && (
                 <th className={`text-right py-2 px-1 ${effectiveSortKey === 'current' ? 'text-blue-300' : 'text-gray-500'}`}>
-                  {currentShort}現状{effectiveSortKey === 'current' && <span className="text-yellow-400">★</span>}
+                  {currentShort}{effectiveSortKey === 'current' && <span className="text-yellow-400">★</span>}
                 </th>
               )}
               <th className={`text-right py-2 px-1 ${effectiveSortKey === 'sales' ? 'text-white' : 'text-gray-500'}`}>
                 {baseShort}{effectiveSortKey === 'sales' && <span className="text-yellow-400">★</span>}
               </th>
-              <th className="text-right py-2 px-1">{prevShort}</th>
+              <th className="text-right py-2 px-1 hidden sm:table-cell">{prevShort}</th>
               <th className="text-right py-2 px-1">{comparisonLabel}</th>
-              <th className="py-2 px-1"></th>
+              <th className="py-2 px-1 w-10 sm:w-14"></th>
             </tr>
           </thead>
           <tbody>
@@ -814,29 +805,29 @@ function StaffHistory({ data }: { data: HistoryData }) {
                     className="border-b border-gray-700/50 hover:bg-gray-700/30 cursor-pointer"
                     onClick={() => setExpandedStaff(isExpanded ? null : s.staff)}
                   >
-                    <td className="py-2 px-1 text-right">
+                    <td className="py-1.5 sm:py-2 px-1 text-right">
                       <span className={`font-bold ${typeof rank === 'number' && rank <= 3 ? 'text-yellow-400' : 'text-gray-500'}`}>{rank}</span>
                     </td>
-                    <td className="py-2 px-1 text-gray-300 truncate">{s.staff}</td>
+                    <td className="py-1.5 sm:py-2 px-1 text-gray-300 truncate max-w-[80px] sm:max-w-none">{s.staff}</td>
                     {hasCurrentMonth && (
-                      <td className={`py-2 px-1 text-right tabular-nums ${effectiveSortKey === 'current' ? 'text-blue-300 font-bold' : 'text-blue-300'}`}>
+                      <td className={`py-1.5 sm:py-2 px-1 text-right tabular-nums whitespace-nowrap ${effectiveSortKey === 'current' ? 'text-blue-300 font-bold' : 'text-blue-300'}`}>
                         {s.currentSales > 0 ? `¥${s.currentSales.toLocaleString()}` : '—'}
                       </td>
                     )}
-                    <td className={`py-2 px-1 text-right tabular-nums ${effectiveSortKey === 'sales' ? 'text-white font-bold' : 'text-gray-400'}`}>
+                    <td className={`py-1.5 sm:py-2 px-1 text-right tabular-nums whitespace-nowrap ${effectiveSortKey === 'sales' ? 'text-white font-bold' : 'text-gray-400'}`}>
                       ¥{s.baseSales.toLocaleString()}
                     </td>
-                    <td className="py-2 px-1 text-right text-gray-500 tabular-nums">
+                    <td className="py-1.5 sm:py-2 px-1 text-right text-gray-500 tabular-nums hidden sm:table-cell">
                       {s.prevSales > 0 ? `¥${s.prevSales.toLocaleString()}` : '—'}
                     </td>
-                    <td className="py-2 px-1 text-right">
+                    <td className="py-1.5 sm:py-2 px-1 text-right whitespace-nowrap">
                       {s.growthRate !== null ? (
                         <div className="leading-tight">
                           <span className={`${s.growthRate >= 0 ? 'text-green-400' : 'text-red-400'}`}>
                             {s.growthRate >= 0 ? '+' : ''}{s.growthRate.toFixed(1)}%
                           </span>
-                          <br />
-                          <span className={`text-[10px] ${salesDiff >= 0 ? 'text-green-400' : 'text-red-400'}`}>
+                          <br className="hidden sm:block" />
+                          <span className={`text-[10px] hidden sm:inline ${salesDiff >= 0 ? 'text-green-400' : 'text-red-400'}`}>
                             {salesDiff >= 0 ? '+' : ''}¥{salesDiff.toLocaleString()}
                           </span>
                         </div>
@@ -844,7 +835,7 @@ function StaffHistory({ data }: { data: HistoryData }) {
                         <span className="text-gray-600">—</span>
                       )}
                     </td>
-                    <td className="py-2 px-1">
+                    <td className="py-1.5 sm:py-2 px-1">
                       <div className="w-full h-2 bg-gray-700 rounded-full overflow-hidden">
                         <div className="h-full bg-blue-500 rounded-full" style={{ width: `${barPct}%` }} />
                       </div>
@@ -1050,15 +1041,15 @@ function StoreOpeningPlanSection({
 
                 return (
                   <div key={plan.id} className="bg-gray-700/50 rounded-lg p-3">
-                    <div className="flex items-center justify-between">
-                      <div>
+                    <div className="flex items-start justify-between gap-2">
+                      <div className="min-w-0">
                         <p className="text-sm font-medium text-white">
                           {plan.store_name}
-                          <span className="text-xs text-gray-400 ml-2">
+                          <span className="text-xs text-gray-400 ml-1 sm:ml-2">
                             {plan.year}年{plan.opening_month}月開店
                           </span>
                           {plan.seats > 0 && (
-                            <span className="text-xs text-gray-500 ml-2">
+                            <span className="text-xs text-gray-500 ml-1 sm:ml-2">
                               {plan.seats}席
                             </span>
                           )}
@@ -1068,13 +1059,13 @@ function StoreOpeningPlanSection({
                           <span className="text-gray-500 mx-1">|</span>
                           {plan.year}年 寄与: {formatOkuMan(yearRevenue)}
                         </p>
-                        <p className="text-[10px] text-gray-500 mt-0.5">
+                        <p className="text-[10px] text-gray-500 mt-0.5 hidden sm:block">
                           成長カーブ: 1ヶ月目30% → 2ヶ月目50% → 3ヶ月目70% → 4ヶ月目85% → 5ヶ月目95% → 6ヶ月目〜100%
                         </p>
                       </div>
                       <button
                         onClick={() => handleDelete(plan.id)}
-                        className="text-xs text-red-400 hover:text-red-300 px-2 py-1"
+                        className="text-xs text-red-400 hover:text-red-300 px-2 py-1 shrink-0"
                       >
                         削除
                       </button>

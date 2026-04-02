@@ -126,7 +126,7 @@ export default function DashboardClient() {
       {mainTab === 'current' && <>
 
       {/* KPI カード */}
-          <div className="grid grid-cols-3 gap-3">
+          <div className="grid grid-cols-3 gap-2 sm:gap-3">
             <KpiCard
               label="累計売上"
               value={formatYen(data.totalSales)}
@@ -195,7 +195,7 @@ export default function DashboardClient() {
             {/* 来店客数（実績 → 着地予測） */}
             <div>
               <p className="text-xs text-gray-500 mb-2">来店客数</p>
-              <div className="grid grid-cols-3 gap-3">
+              <div className="grid grid-cols-3 gap-2 sm:gap-3">
                 <ForecastCard label="合計総客数" value={data.totalCustomers} forecast={data.customerForecast} />
                 <ForecastCard label="合計指名客数" value={data.nominated} forecast={data.nominatedForecast} />
                 <ForecastCard label="合計フリー客数" value={data.freeVisit} forecast={data.freeVisitForecast} />
@@ -205,7 +205,7 @@ export default function DashboardClient() {
             {/* 新規・単価 */}
             <div>
               <p className="text-xs text-gray-500 mb-2">新規・単価</p>
-              <div className="grid grid-cols-3 gap-3">
+              <div className="grid grid-cols-3 gap-2 sm:gap-3">
                 <ForecastCard label="合計新規人数" value={data.newCustomers} forecast={data.newCustomerForecast} color="text-emerald-400" />
                 <MiniKpi label="今月客単価" value={formatYen(data.avgSpend)} />
                 <MiniKpi
@@ -319,11 +319,11 @@ function ForecastDetailSection({ data }: { data: DashboardData }) {
       </div>
 
       {/* 3パターンカード */}
-      <div className="grid grid-cols-3 gap-2">
+      <div className="grid grid-cols-3 gap-1.5 sm:gap-2">
         {/* 高め見込み */}
-        <div className="bg-emerald-900/20 border border-emerald-700/30 rounded-lg p-3 text-center">
-          <p className="text-[10px] text-emerald-400 mb-1 font-medium">高め見込み</p>
-          <p className="text-lg font-bold text-emerald-400">
+        <div className="bg-emerald-900/20 border border-emerald-700/30 rounded-lg p-2 sm:p-3 text-center">
+          <p className="text-[10px] text-emerald-400 mb-0.5 sm:mb-1 font-medium">高め見込み</p>
+          <p className="text-sm sm:text-lg font-bold text-emerald-400">
             {formatYen(optimistic)}
           </p>
           {targetDiffOpt !== null && (
@@ -333,9 +333,9 @@ function ForecastDetailSection({ data }: { data: DashboardData }) {
           )}
         </div>
         {/* 着地予測（標準） */}
-        <div className="bg-blue-900/20 border border-blue-600/30 rounded-lg p-3 text-center">
-          <p className="text-[10px] text-blue-300 mb-1 font-medium">着地予測</p>
-          <p className="text-lg font-bold text-white">
+        <div className="bg-blue-900/20 border border-blue-600/30 rounded-lg p-2 sm:p-3 text-center">
+          <p className="text-[10px] text-blue-300 mb-0.5 sm:mb-1 font-medium">着地予測</p>
+          <p className="text-sm sm:text-lg font-bold text-white">
             {formatYen(standard)}
           </p>
           {targetDiffStd !== null && (
@@ -345,9 +345,9 @@ function ForecastDetailSection({ data }: { data: DashboardData }) {
           )}
         </div>
         {/* 堅実ライン */}
-        <div className="bg-gray-800/60 border border-gray-600/30 rounded-lg p-3 text-center">
-          <p className="text-[10px] text-gray-400 mb-1 font-medium">堅実ライン</p>
-          <p className="text-lg font-bold text-gray-300">
+        <div className="bg-gray-800/60 border border-gray-600/30 rounded-lg p-2 sm:p-3 text-center">
+          <p className="text-[10px] text-gray-400 mb-0.5 sm:mb-1 font-medium">堅実ライン</p>
+          <p className="text-sm sm:text-lg font-bold text-gray-300">
             {formatYen(conservative)}
           </p>
           {targetDiffCon !== null && (
@@ -370,9 +370,9 @@ function ForecastDetailSection({ data }: { data: DashboardData }) {
         <div className="bg-gray-900/50 rounded-lg p-3 space-y-1.5">
           <p className="text-xs font-medium text-gray-400 mb-2">予測の根拠</p>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-1 text-[11px]">
-            <div className="flex justify-between text-gray-400">
-              <span>日割りペース</span>
-              <span className="text-gray-300">
+            <div className="flex justify-between text-gray-400 gap-2">
+              <span className="shrink-0">日割りペース</span>
+              <span className="text-gray-300 text-right truncate">
                 {formatYen(fd.rationale.dailyAvg)}/日 → {formatYen(fd.rationale.paceEstimate)}
               </span>
             </div>
@@ -432,31 +432,31 @@ function KpiCard({
   subColor?: string
 }) {
   return (
-    <div className="bg-gray-800 rounded-xl p-4">
-      <p className="text-xs text-gray-400 mb-1">{label}</p>
-      <p className={`text-xl font-bold ${valueColor}`}>{value}</p>
-      {sub && <p className={`text-xs mt-0.5 ${subColor}`}>{sub}</p>}
+    <div className="bg-gray-800 rounded-xl p-2.5 sm:p-4">
+      <p className="text-[10px] sm:text-xs text-gray-400 mb-0.5 sm:mb-1">{label}</p>
+      <p className={`text-base sm:text-xl font-bold ${valueColor} truncate`}>{value}</p>
+      {sub && <p className={`text-[10px] sm:text-xs mt-0.5 ${subColor} truncate`}>{sub}</p>}
     </div>
   )
 }
 
 function MiniKpi({ label, value, sub, valueColor = 'text-white' }: { label: string; value: string; sub?: string; valueColor?: string }) {
   return (
-    <div className="bg-gray-900/50 rounded-lg p-3">
-      <p className="text-xs text-gray-400 mb-1">{label}</p>
-      <p className={`text-lg font-bold ${valueColor}`}>{value}</p>
-      {sub && <p className="text-xs text-gray-500 mt-0.5">{sub}</p>}
+    <div className="bg-gray-900/50 rounded-lg p-2 sm:p-3">
+      <p className="text-[10px] sm:text-xs text-gray-400 mb-0.5 sm:mb-1 truncate">{label}</p>
+      <p className={`text-sm sm:text-lg font-bold ${valueColor} truncate`}>{value}</p>
+      {sub && <p className="text-[10px] sm:text-xs text-gray-500 mt-0.5 truncate">{sub}</p>}
     </div>
   )
 }
 
 function ForecastCard({ label, value, forecast, color = 'text-white' }: { label: string; value: number; forecast: number; color?: string }) {
   return (
-    <div className="bg-gray-900/50 rounded-lg p-3">
-      <p className="text-xs text-gray-400 mb-1">{label}</p>
-      <p className={`text-lg font-bold ${color}`}>{value.toLocaleString()}<span className="text-sm">人</span></p>
-      <p className="text-xs text-cyan-300 mt-1.5">今月着地予測</p>
-      <p className="text-base font-bold text-cyan-400">{forecast.toLocaleString()}人</p>
+    <div className="bg-gray-900/50 rounded-lg p-2 sm:p-3">
+      <p className="text-[10px] sm:text-xs text-gray-400 mb-0.5 sm:mb-1 truncate">{label}</p>
+      <p className={`text-sm sm:text-lg font-bold ${color}`}>{value.toLocaleString()}<span className="text-xs sm:text-sm">人</span></p>
+      <p className="text-[10px] sm:text-xs text-cyan-300 mt-1 sm:mt-1.5">着地予測</p>
+      <p className="text-xs sm:text-base font-bold text-cyan-400">{forecast.toLocaleString()}人</p>
     </div>
   )
 }
