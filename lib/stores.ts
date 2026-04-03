@@ -12,3 +12,12 @@ export const STORES = [
   { name: 'AI TOKYO 名古屋 2nd', bm_code: '65211838' },
   { name: 'AITOKYO + Sea店 横浜', bm_code: '73245379' },
 ] as const
+
+// 閉店済み店舗（グレー表示・末尾配置）
+export const CLOSED_STORES: string[] = [
+  '福岡',
+]
+
+export function isClosedStore(storeName: string): boolean {
+  return CLOSED_STORES.some(keyword => storeName.includes(keyword))
+}

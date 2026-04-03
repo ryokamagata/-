@@ -9,6 +9,7 @@ import {
   getSeasonalIndex,
 } from '@/lib/db'
 import { normalizeStaffName } from '@/lib/staffNormalize'
+import { isClosedStore } from '@/lib/stores'
 
 export const revalidate = 0
 
@@ -363,6 +364,119 @@ export async function GET() {
     }
   }
 
+  // ━━━ 店舗別の未来予測 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  // 各店舗の月別売上から、前年同月×成長率で未来月を予測
+  type StoreProjectionMonth = { month: number; sales: number; isProjected: boolean }
+  type StoreProjection = {
+    store: string
+    ytdTotal: number
+    projectedTotal: number
+    avgGrowthRate: number | null
+    monthDetails: StoreProjectionMonth[]
+    isClosed: boolean
+  }
+
+  const storeProjections: StoreProjection[] = (() => {
+    // 店舗ごとに年×月のデータをまとめる
+    const storeYearMonth = new Map<string, Map<string, { sales: number; customers: number }>>()
+    for (const row of storeMonthly) {
+      if (!storeYearMonth.has(row.store)) storeYearMonth.set(row.store, new Map())
+      storeYearMonth.get(row.store)!.set(row.month, { sales: row.sales, customers: row.customers })
+    }
+
+    const results: StoreProjection[] = []
+
+    for (const [store, monthMap] of storeYearMonth) {
+      // 今年と前年のデータを分離
+      const currentYearStore = new Map<number, number>()
+      const prevYearStore = new Map<number, number>()
+
+      for (const [monthKey, data] of monthMap) {
+        const [yStr, mStr] = monthKey.split('-')
+        const y = parseInt(yStr)
+        const mo = parseInt(mStr)
+        if (y === toYear) currentYearStore.set(mo, data.sales)
+        if (y === toYear - 1) prevYearStore.set(mo, data.sales)
+      }
+
+      // 完了月のみでYoY成長率を計算
+      const completedMonths = Array.from(currentYearStore.keys()).filter(mo => mo !== toMonth)
+      const yoyRates: number[] = []
+      for (const mo of completedMonths) {
+        const curr = currentYearStore.get(mo)
+        const prev = prevYearStore.get(mo)
+        if (curr && prev && prev > 0) {
+          yoyRates.push((curr - prev) / prev)
+        }
+      }
+      const avgGrowthRate = yoyRates.length > 0
+        ? yoyRates.reduce((a, b) => a + b, 0) / yoyRates.length
+        : null
+
+      // 12ヶ月分の予測を作成
+      const monthDetails: StoreProjectionMonth[] = []
+      let ytdTotal = 0
+      let projectedTotal = 0
+
+      for (let mo = 1; mo <= 12; mo++) {
+        if (mo === toMonth) {
+          // 今月: 日割りペースで着地予測
+          const actual = currentYearStore.get(mo)
+          if (actual && actual > 0) {
+            const daysElapsed = Math.max(today - 1, 1)
+            const estimate = Math.round((actual / daysElapsed) * daysInCurrentMonth)
+            monthDetails.push({ month: mo, sales: estimate, isProjected: true })
+            projectedTotal += estimate
+          }
+        } else {
+          const actual = currentYearStore.get(mo)
+          if (actual !== undefined) {
+            monthDetails.push({ month: mo, sales: actual, isProjected: false })
+            ytdTotal += actual
+            projectedTotal += actual
+          } else if (mo > toMonth) {
+            // 未来月: 前年同月 × (1 + 成長率)
+            const prev = prevYearStore.get(mo)
+            if (prev && avgGrowthRate !== null) {
+              const projected = Math.round(prev * (1 + avgGrowthRate))
+              monthDetails.push({ month: mo, sales: projected, isProjected: true })
+              projectedTotal += projected
+            }
+          }
+        }
+      }
+
+      // 閉店判定: 閉店リスト or 直近データなし
+      const isClosed = isClosedStore(store) || (() => {
+        // 直近3ヶ月に実績がない場合も閉店扱い
+        let recentEmpty = 0
+        for (let mo = toMonth; mo >= Math.max(toMonth - 2, 1); mo--) {
+          if (!currentYearStore.has(mo) && !prevYearStore.has(mo)) recentEmpty++
+        }
+        return recentEmpty >= 3 && monthDetails.length === 0
+      })()
+
+      if (monthDetails.length > 0 || isClosed) {
+        results.push({
+          store,
+          ytdTotal,
+          projectedTotal,
+          avgGrowthRate: avgGrowthRate !== null ? Math.round(avgGrowthRate * 1000) / 10 : null,
+          monthDetails,
+          isClosed,
+        })
+      }
+    }
+
+    // ソート: 閉店店舗を末尾に、それ以外はprojectedTotal降順
+    results.sort((a, b) => {
+      if (a.isClosed !== b.isClosed) return a.isClosed ? 1 : -1
+      return b.projectedTotal - a.projectedTotal
+    })
+
+    return results
+  })()
+
   // 出店計画データ
   const storeOpeningPlans = getStoreOpeningPlans()
   const seasonalIndex = getSeasonalIndex(toYear)
@@ -382,5 +496,6 @@ export async function GET() {
     projection,
     storeOpeningPlans,
     seasonalIndex,
+    storeProjections,
   })
 }
