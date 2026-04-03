@@ -11,6 +11,8 @@ import {
   getMonthlyTargets,
   getAnnualTarget,
   getSeasonalIndex,
+  getStoreOpeningPlans,
+  getStoreOpeningRevenue,
 } from '@/lib/db'
 import { STORES, MAX_REVENUE_PER_SEAT, isClosedStore } from '@/lib/stores'
 import { getHolidayMap } from '@/lib/holidays'
@@ -258,15 +260,37 @@ export async function GET() {
   const existingTargets = getMonthlyTargets(toYear)
   const annualTarget = getAnnualTarget(toYear)
 
-  // 全店合計の席数上限
-  const totalSeats = STORES.filter(s => !isClosedStore(s.name)).reduce((s, st) => s + st.seats, 0)
-  const monthlyRevenueCeiling = totalSeats * MAX_REVENUE_PER_SEAT
-  const realisticCeiling = Math.round(monthlyRevenueCeiling * 0.85) // 席稼働85%前提
+  // 全店合計の席数上限（既存店＋新店の席数を月別に考慮）
+  const existingSeats = STORES.filter(s => !isClosedStore(s.name)).reduce((s, st) => s + st.seats, 0)
+  const storePlans = getStoreOpeningPlans(toYear)
+  const storeOpeningRevenue = getStoreOpeningRevenue(toYear)
+
+  // 月別の新店売上寄与
+  const newStoreRevenueByMonth: Record<number, number> = {}
+  const newStoreDetailByMonth: Record<number, { name: string; revenue: number }[]> = {}
+  for (const sr of storeOpeningRevenue) {
+    newStoreRevenueByMonth[sr.month] = (newStoreRevenueByMonth[sr.month] ?? 0) + sr.revenue
+    if (!newStoreDetailByMonth[sr.month]) newStoreDetailByMonth[sr.month] = []
+    newStoreDetailByMonth[sr.month].push({ name: sr.storeName, revenue: sr.revenue })
+  }
+
+  // 月別の総席数（既存＋新店）
+  const getMonthlySeats = (mo: number) => {
+    let seats = existingSeats
+    for (const plan of storePlans) {
+      if (plan.opening_month <= mo) seats += (plan.seats ?? 0)
+    }
+    return seats
+  }
+
+  const totalSeats = existingSeats // 基本席数（表示用）
+  const monthlyRevenueCeiling = existingSeats * MAX_REVENUE_PER_SEAT
+  const realisticCeiling = Math.round(monthlyRevenueCeiling * 0.85)
 
   // YoY成長率（完了月ベース）
   const yoyRates: number[] = []
   for (const cm of currentYearMonthly) {
-    if (cm.month === `${toYear}-${String(toMonth).padStart(2, '0')}`) continue // 今月は除外
+    if (cm.month === `${toYear}-${String(toMonth).padStart(2, '0')}`) continue
     const [, mStr] = cm.month.split('-')
     const mo = parseInt(mStr)
     const prev = prevYearMonthly.find(p => {
@@ -287,11 +311,16 @@ export async function GET() {
     suggested: number
     existing: number | null
     rationale: string[]
+    newStoreRevenue: number
+    newStoreDetail: { name: string; revenue: number }[]
+    commentary: string | null
     basis: {
       prevYear: number | null
       yoyRate: number | null
       seasonal: number | null
       ceiling: number
+      monthSeats: number
+      monthCeiling: number
     }
   }[] = []
 
@@ -301,12 +330,18 @@ export async function GET() {
     const prevSales = prevData?.sales ?? null
     const seasonal = seasonalIndex[mo] ?? null
     const existing = existingTargets[mo] ?? null
+    const newStoreRev = newStoreRevenueByMonth[mo] ?? 0
+    const newStoreDetail = newStoreDetailByMonth[mo] ?? []
+
+    // 月別の席数・上限を算出（新店含む）
+    const monthSeats = getMonthlySeats(mo)
+    const monthCeiling = Math.round(monthSeats * MAX_REVENUE_PER_SEAT * 0.85)
 
     let suggested: number
     const rationale: string[] = []
 
     if (prevSales && avgYoYRate !== null) {
-      // ベース: 前年同月 × (1 + 成長率)
+      // ベース: 前年同月 × (1 + 成長率) — 既存店分
       const base = Math.round(prevSales * (1 + avgYoYRate))
       rationale.push(`前年${mo}月 ${(prevSales / 10000).toFixed(0)}万 × 成長率${(avgYoYRate * 100).toFixed(1)}%`)
 
@@ -320,26 +355,50 @@ export async function GET() {
         suggested = base
       }
 
-      // 席数上限でキャップ
-      if (suggested > realisticCeiling) {
-        suggested = realisticCeiling
-        rationale.push(`席数上限(${totalSeats}席×85%)でキャップ`)
+      // 新店売上を上乗せ
+      if (newStoreRev > 0) {
+        suggested += newStoreRev
+        const storeNames = newStoreDetail.map(d => d.name).join('・')
+        rationale.push(`新店(${storeNames})売上 +${Math.round(newStoreRev / 10000)}万を加算`)
       }
 
-      // 攻めの目標: 提案値の105-110%を推奨（ユーザーは高め設定を好む）
+      // 月別席数上限でキャップ
+      if (suggested > monthCeiling) {
+        suggested = monthCeiling
+        rationale.push(`席数上限(${monthSeats}席×85%)でキャップ`)
+      }
+
+      // 攻めの目標
       const aggressive = Math.round(suggested * 1.08)
-      suggested = Math.min(aggressive, realisticCeiling)
+      suggested = Math.min(aggressive, monthCeiling)
       rationale.push(`攻め目標として+8%上乗せ`)
     } else if (prevSales) {
-      suggested = Math.round(prevSales * 1.1)
+      suggested = Math.round(prevSales * 1.1) + newStoreRev
       rationale.push(`前年同月 +10%（成長データ不足）`)
+      if (newStoreRev > 0) rationale.push(`新店売上 +${Math.round(newStoreRev / 10000)}万`)
     } else {
-      // 前年データなし
       const avgMonthly = currentYearMonthly.length > 0
         ? currentYearMonthly.reduce((s, m) => s + m.sales, 0) / currentYearMonthly.length
         : realisticCeiling * 0.6
-      suggested = Math.round(avgMonthly * 1.05)
+      suggested = Math.round(avgMonthly * 1.05) + newStoreRev
       rationale.push(`今期平均 ×105%（前年データなし）`)
+      if (newStoreRev > 0) rationale.push(`新店売上 +${Math.round(newStoreRev / 10000)}万`)
+    }
+
+    // コメンタリー生成（目標との乖離分析）
+    let commentary: string | null = null
+    if (existing !== null && existing > 0) {
+      const diff = suggested - existing
+      const diffPct = Math.round(diff / existing * 100)
+      if (Math.abs(diffPct) <= 5) {
+        commentary = `現在目標は妥当な水準です。提案値との差は${Math.abs(diffPct)}%以内。`
+      } else if (diff > 0) {
+        commentary = `現在目標が提案より${Math.round(diff / 10000)}万円低め（${diffPct}%差）。${newStoreRev > 0 ? '新店オープンを考慮すると' : '成長トレンドを考慮すると'}目標の上方修正を検討。`
+      } else {
+        commentary = `現在目標が提案より${Math.round(Math.abs(diff) / 10000)}万円高め（${Math.abs(diffPct)}%差）。達成難度が高い可能性。${seasonal !== null && seasonal < 0.9 ? '閑散期のため特に注意。' : ''}`
+      }
+    } else if (newStoreRev > 0) {
+      commentary = `新店オープンにより売上が+${Math.round(newStoreRev / 10000)}万見込み。早期に月次目標を設定することを推奨。`
     }
 
     targetSuggestions.push({
@@ -347,16 +406,29 @@ export async function GET() {
       suggested,
       existing,
       rationale,
+      newStoreRevenue: newStoreRev,
+      newStoreDetail,
+      commentary,
       basis: {
         prevYear: prevSales,
         yoyRate: avgYoYRate !== null ? Math.round(avgYoYRate * 1000) / 10 : null,
         seasonal,
         ceiling: realisticCeiling,
+        monthSeats,
+        monthCeiling,
       },
     })
   }
 
   const suggestedAnnualTotal = targetSuggestions.reduce((s, t) => s + t.suggested, 0)
+
+  // 出店計画サマリー
+  const storePlansSummary = storePlans.map(p => ({
+    name: p.store_name,
+    month: p.opening_month,
+    revenue: p.max_monthly_revenue,
+    seats: p.seats ?? 0,
+  }))
 
   return NextResponse.json({
     priceVolumeDecomposition,
@@ -371,5 +443,6 @@ export async function GET() {
     existingAnnualTarget: annualTarget,
     realisticCeiling,
     totalSeats,
+    storePlansSummary,
   })
 }

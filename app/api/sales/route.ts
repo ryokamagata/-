@@ -122,9 +122,55 @@ export async function GET() {
   // 今月客単価 = 総売上 ÷ 総客数
   const avgSpend = totalCustomers > 0 ? Math.round(forecast.actualTotal / totalCustomers) : 0
 
-  // 着地予測（日割り × 月日数）
-  const newCustomerForecast = Math.round((newCustomers / effectiveDays) * daysInMonth)
-  const customerForecast = Math.round((totalCustomers / effectiveDays) * daysInMonth)
+  // 着地予測（前年同月ブレンド方式 — 月初の精度向上）
+  const monthProgressRate = effectiveDays / daysInMonth
+  // 前年同月の客数を取得
+  const prevYearVisitors = getPerStoreVisitors(year - 1, month)
+  const prevYearNewCustomers = prevYearVisitors.filter(v => !isClosedStore(v.store)).reduce((s, v) => s + v.new_customers, 0)
+  const prevYearTotalCustomers = prevYearVisitors.filter(v => !isClosedStore(v.store)).reduce((s, v) => s + v.nominated + v.free_visit, 0)
+
+  // ペース予測（日割り）
+  const paceNewForecast = Math.round((newCustomers / effectiveDays) * daysInMonth)
+  const paceTotalForecast = Math.round((totalCustomers / effectiveDays) * daysInMonth)
+
+  // 完了月のYoY成長率を計算
+  let customerYoYRate: number | null = null
+  if (month > 1) {
+    const yoyRates: number[] = []
+    for (let mo = 1; mo < month; mo++) {
+      const currV = getPerStoreVisitors(year, mo)
+      const prevV = getPerStoreVisitors(year - 1, mo)
+      const currTotal = currV.filter(v => !isClosedStore(v.store)).reduce((s, v) => s + v.nominated + v.free_visit, 0)
+      const prevTotal = prevV.filter(v => !isClosedStore(v.store)).reduce((s, v) => s + v.nominated + v.free_visit, 0)
+      if (prevTotal > 0 && currTotal > 0) yoyRates.push((currTotal - prevTotal) / prevTotal)
+    }
+    if (yoyRates.length > 0) customerYoYRate = yoyRates.reduce((a, b) => a + b, 0) / yoyRates.length
+  }
+
+  // YoY予測
+  const yoyNewForecast = prevYearNewCustomers > 0
+    ? Math.round(prevYearNewCustomers * (1 + (customerYoYRate ?? 0)))
+    : null
+  const yoyTotalForecast = prevYearTotalCustomers > 0
+    ? Math.round(prevYearTotalCustomers * (1 + (customerYoYRate ?? 0)))
+    : null
+
+  // ブレンド（月初はYoY重視、月末はペース重視）
+  let custPaceWeight: number
+  if (monthProgressRate < 0.3) {
+    custPaceWeight = 0.2
+  } else if (monthProgressRate > 0.7) {
+    custPaceWeight = 0.8
+  } else {
+    custPaceWeight = 0.2 + (monthProgressRate - 0.3) / 0.4 * 0.6
+  }
+
+  const newCustomerForecast = yoyNewForecast !== null
+    ? Math.round(paceNewForecast * custPaceWeight + yoyNewForecast * (1 - custPaceWeight))
+    : paceNewForecast
+  const customerForecast = yoyTotalForecast !== null
+    ? Math.round(paceTotalForecast * custPaceWeight + yoyTotalForecast * (1 - custPaceWeight))
+    : paceTotalForecast
   const nominatedForecast = Math.round((nominated / effectiveDays) * daysInMonth)
   const freeVisitForecast = Math.round((freeVisit / effectiveDays) * daysInMonth)
 

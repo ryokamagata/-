@@ -76,11 +76,48 @@ export async function GET(req: NextRequest) {
     }
   }
 
+  // 月別目標マップを取得
+  const MATSUDATE_MONTHLY = (await import('@/lib/kpiConfig')).MATSUDATE_MONTHLY_TARGETS
+  const CREATIVE_MONTHLY = (await import('@/lib/kpiConfig')).CREATIVE_MONTHLY_TARGETS
+
+  // KPIキー→月別目標のマッピング
+  const monthlyTargetMap: Record<string, Record<number, number>> = {}
+  for (let mo = 1; mo <= 12; mo++) {
+    const mt = MATSUDATE_MONTHLY[mo]
+    if (mt) {
+      if (!monthlyTargetMap['new_customers']) monthlyTargetMap['new_customers'] = {}
+      monthlyTargetMap['new_customers'][mo] = mt.newCustomers
+      if (!monthlyTargetMap['return_rate']) monthlyTargetMap['return_rate'] = {}
+      monthlyTargetMap['return_rate'][mo] = mt.returnRate
+      if (!monthlyTargetMap['productivity']) monthlyTargetMap['productivity'] = {}
+      monthlyTargetMap['productivity'][mo] = mt.productivity
+    }
+    const ct = CREATIVE_MONTHLY[mo]
+    if (ct) {
+      if (!monthlyTargetMap['hpb_styles']) monthlyTargetMap['hpb_styles'] = {}
+      monthlyTargetMap['hpb_styles'][mo] = ct.hpbStyles
+      if (!monthlyTargetMap['instagram_followers']) monthlyTargetMap['instagram_followers'] = {}
+      monthlyTargetMap['instagram_followers'][mo] = ct.instagram
+      if (!monthlyTargetMap['avg_unit_price']) monthlyTargetMap['avg_unit_price'] = {}
+      monthlyTargetMap['avg_unit_price'][mo] = ct.unitPrice
+    }
+  }
+
   // 各責任者のスコアカードを計算
   const executives = EXECUTIVES.map(exec => {
     const kpiResults = exec.kpis.map(kpi => {
-      const source = kpi.source === 'auto' ? autoKpis : manualKpis
-      const monthlyValues = source[kpi.key] ?? {}
+      // autoKpiを基本にし、手動入力があれば上書き（全KPIで手動入力可能に）
+      const autoValues = autoKpis[kpi.key] ?? {}
+      const manualValues = manualKpis[kpi.key] ?? {}
+      // 手動入力が優先、なければ自動値
+      const monthlyValues: Record<number, number> = {}
+      for (let mo = 1; mo <= 12; mo++) {
+        if (manualValues[mo] !== undefined && manualValues[mo] !== null) {
+          monthlyValues[mo] = manualValues[mo]
+        } else if (autoValues[mo] !== undefined && autoValues[mo] !== null) {
+          monthlyValues[mo] = autoValues[mo]
+        }
+      }
 
       // Q期間の値を集計
       const qMonths = getQuarterMonths(currentQ)
@@ -105,6 +142,28 @@ export async function GET(req: NextRequest) {
       const score = qValue !== null ? calculateScore(qValue, kpi.scoring, isReverse) : null
       const target = kpi.quarterTargets[currentQ] ?? null
 
+      // 月別目標
+      const kpiMonthlyTargets = monthlyTargetMap[kpi.key] ?? {}
+
+      // 月別進捗（月ごとの目標対比）
+      const monthlyProgress = qMonths.map(m => {
+        const actual = monthlyValues[m] ?? null
+        const monthTarget = kpiMonthlyTargets[m] ?? null
+        let status: 'achieved' | 'on_track' | 'behind' | 'no_data' = 'no_data'
+        if (actual !== null && monthTarget !== null && monthTarget > 0) {
+          const ratio = isReverse ? (monthTarget / actual) : (actual / monthTarget)
+          status = ratio >= 1 ? 'achieved' : ratio >= 0.8 ? 'on_track' : 'behind'
+        }
+        return {
+          month: m,
+          actual,
+          target: monthTarget,
+          autoValue: autoValues[m] ?? null,
+          manualValue: manualValues[m] ?? null,
+          status,
+        }
+      })
+
       return {
         key: kpi.key,
         label: kpi.label,
@@ -115,6 +174,7 @@ export async function GET(req: NextRequest) {
         score,
         maxScore: 30,
         monthlyValues,
+        monthlyProgress,
         monthlyTargets: qMonths.map(m => ({
           month: m,
           value: monthlyValues[m] ?? null,

@@ -25,12 +25,24 @@ type TargetSuggestion = {
   suggested: number
   existing: number | null
   rationale: string[]
+  newStoreRevenue: number
+  newStoreDetail: { name: string; revenue: number }[]
+  commentary: string | null
   basis: {
     prevYear: number | null
     yoyRate: number | null
     seasonal: number | null
     ceiling: number
+    monthSeats: number
+    monthCeiling: number
   }
+}
+
+type StorePlanSummary = {
+  name: string
+  month: number
+  revenue: number
+  seats: number
 }
 
 type UtilRow = { dow: number; label: string; avgRate: number; days: number }
@@ -72,6 +84,7 @@ type AnalysisData = {
   existingAnnualTarget: number | null
   realisticCeiling: number
   totalSeats: number
+  storePlansSummary: StorePlanSummary[]
 }
 
 type SubTab = 'decomposition' | 'dow' | 'target'
@@ -524,6 +537,8 @@ function TargetSuggestPanel({ data }: { data: AnalysisData }) {
     }
   }
 
+  const hasStorePlans = data.storePlansSummary && data.storePlansSummary.length > 0
+
   return (
     <div className="space-y-3">
       {/* サマリー */}
@@ -532,7 +547,7 @@ function TargetSuggestPanel({ data }: { data: AnalysisData }) {
           <div>
             <h3 className="text-sm font-medium text-gray-300">目標自動サジェスト</h3>
             <p className="text-[10px] text-gray-500 mt-0.5">
-              席数{data.totalSeats}席 / 稼働上限 {formatMan(data.realisticCeiling)}/月 / 前年実績+成長率+季節変動で算出
+              既存{data.totalSeats}席{hasStorePlans ? ` + 新店${data.storePlansSummary.reduce((s: number, p: StorePlanSummary) => s + p.seats, 0)}席` : ''} / 前年実績+成長率+季節変動+出店計画で算出
             </p>
           </div>
           <div className="flex items-center gap-3">
@@ -550,6 +565,26 @@ function TargetSuggestPanel({ data }: { data: AnalysisData }) {
         </div>
       </div>
 
+      {/* 出店計画カード（ある場合） */}
+      {hasStorePlans && (
+        <div className="bg-gray-800 rounded-xl p-3 sm:p-4 border border-purple-500/20">
+          <h4 className="text-xs font-medium text-purple-400 mb-2">出店計画（目標に自動反映中）</h4>
+          <div className="flex flex-wrap gap-2">
+            {data.storePlansSummary.map((p: StorePlanSummary, i: number) => (
+              <div key={i} className="bg-purple-500/10 rounded-lg px-3 py-2 text-xs">
+                <div className="font-bold text-purple-300">{p.name}</div>
+                <div className="text-[10px] text-gray-400">
+                  {p.month}月開業 / {p.seats}席 / 上限{formatMan(p.revenue)}/月
+                </div>
+              </div>
+            ))}
+          </div>
+          <p className="text-[10px] text-gray-500 mt-2">
+            出店計画を変更すると提案目標が自動的に再計算されます（成長カーブ: 30%→50%→70%→85%→95%→100%）
+          </p>
+        </div>
+      )}
+
       {/* 月別サジェスト */}
       <div className="bg-gray-800 rounded-xl p-3 sm:p-4">
         <div className="overflow-x-auto -mx-3 px-3 sm:mx-0 sm:px-0">
@@ -560,16 +595,22 @@ function TargetSuggestPanel({ data }: { data: AnalysisData }) {
                 <th className="text-right py-2 px-1">提案目標</th>
                 <th className="text-right py-2 px-1">現在目標</th>
                 <th className="text-right py-2 px-1">前年実績</th>
-                <th className="text-right py-2 px-1 hidden sm:table-cell">季節変動</th>
-                <th className="text-left py-2 px-1">根拠</th>
+                <th className="text-right py-2 px-1 hidden sm:table-cell">季節</th>
+                {hasStorePlans && <th className="text-right py-2 px-1 hidden sm:table-cell">新店</th>}
+                <th className="text-left py-2 px-1">分析</th>
               </tr>
             </thead>
             <tbody>
               {data.targetSuggestions.map(s => {
                 const diff = s.existing ? s.suggested - s.existing : null
                 return (
-                  <tr key={s.month} className="border-b border-gray-700/50 hover:bg-gray-700/30">
-                    <td className="py-1.5 px-1 text-gray-300 font-bold">{s.month}月</td>
+                  <tr key={s.month} className={`border-b border-gray-700/50 hover:bg-gray-700/30 ${s.newStoreRevenue > 0 ? 'bg-purple-500/5' : ''}`}>
+                    <td className="py-1.5 px-1 text-gray-300 font-bold">
+                      {s.month}月
+                      {s.newStoreDetail.length > 0 && (
+                        <span className="text-[8px] text-purple-400 ml-0.5">NEW</span>
+                      )}
+                    </td>
                     <td className="py-1.5 px-1 text-right text-cyan-400 font-bold">{formatMan(s.suggested)}</td>
                     <td className="py-1.5 px-1 text-right">
                       {s.existing ? (
@@ -593,12 +634,23 @@ function TargetSuggestPanel({ data }: { data: AnalysisData }) {
                         </span>
                       ) : '—'}
                     </td>
+                    {hasStorePlans && (
+                      <td className="py-1.5 px-1 text-right hidden sm:table-cell">
+                        {s.newStoreRevenue > 0 ? (
+                          <span className="text-purple-400">+{formatMan(s.newStoreRevenue)}</span>
+                        ) : <span className="text-gray-600">—</span>}
+                      </td>
+                    )}
                     <td className="py-1.5 px-1">
-                      <div className="flex flex-col gap-0.5">
-                        {s.rationale.map((r, i) => (
-                          <span key={i} className="text-[10px] text-gray-500">{r}</span>
-                        ))}
-                      </div>
+                      {s.commentary ? (
+                        <span className="text-[10px] text-gray-400">{s.commentary}</span>
+                      ) : (
+                        <div className="flex flex-col gap-0.5">
+                          {s.rationale.slice(0, 2).map((r, i) => (
+                            <span key={i} className="text-[10px] text-gray-500">{r}</span>
+                          ))}
+                        </div>
+                      )}
                     </td>
                   </tr>
                 )
@@ -631,8 +683,9 @@ function TargetSuggestPanel({ data }: { data: AnalysisData }) {
         <div className="text-[10px] text-gray-500 space-y-1">
           <p>1. ベース = 前年同月売上 × (1 + YoY平均成長率{data.targetSuggestions[0]?.basis.yoyRate != null ? ` ${data.targetSuggestions[0].basis.yoyRate}%` : ''})</p>
           <p>2. 季節変動指数で補正（前年の月別売上÷平均から算出）</p>
-          <p>3. 席数上限チェック（{data.totalSeats}席 × 120万/席 × 稼働85% = {formatMan(data.realisticCeiling)}）</p>
-          <p>4. 攻めの目標として+8%上乗せ</p>
+          {hasStorePlans && <p>3. 出店計画の売上寄与を加算（成長カーブ: 開業→6ヶ月で100%到達）</p>}
+          <p>{hasStorePlans ? '4' : '3'}. 月別席数上限チェック（既存+新店の席数 × 120万/席 × 稼働85%）</p>
+          <p>{hasStorePlans ? '5' : '4'}. 攻めの目標として+8%上乗せ</p>
         </div>
       </div>
     </div>
