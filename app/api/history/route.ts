@@ -429,7 +429,7 @@ export async function GET() {
           if (actual && actual > 0) {
             const daysElapsed = Math.max(today - 1, 1)
             let estimate = Math.round((actual / daysElapsed) * daysInCurrentMonth)
-            if (revenueCap) estimate = Math.min(estimate, revenueCap)
+            if (revenueCap) estimate = Math.min(estimate, Math.round(revenueCap * 0.85))
             monthDetails.push({ month: mo, sales: estimate, isProjected: true })
             projectedTotal += estimate
           }
@@ -444,7 +444,11 @@ export async function GET() {
             const prev = prevYearStore.get(mo)
             if (prev && avgGrowthRate !== null) {
               let projected = Math.round(prev * (1 + avgGrowthRate))
-              if (revenueCap) projected = Math.min(projected, revenueCap)
+              if (revenueCap) {
+                // 席単価上限の85%を現実的な上限とする（MAX到達は稀）
+                const realisticCap = Math.round(revenueCap * 0.85)
+                projected = Math.min(projected, realisticCap)
+              }
               monthDetails.push({ month: mo, sales: projected, isProjected: true })
               projectedTotal += projected
             }

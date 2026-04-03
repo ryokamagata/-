@@ -643,7 +643,7 @@ function StoreHistory({
               )}
               {revenueCap && (
                 <span className="text-[10px] text-orange-400/70">
-                  上限 {formatOkuMan(revenueCap)}/月
+                  上限 {formatOkuMan(Math.round(revenueCap * 0.85))}/月
                 </span>
               )}
             </div>
@@ -687,7 +687,7 @@ function StoreHistory({
                       </td>
                       <td className={`py-1.5 sm:py-2 px-1 sm:px-2 text-right font-bold whitespace-nowrap ${m.isProjected ? 'text-cyan-400' : 'text-white'}`}>
                         ¥{m.sales.toLocaleString()}
-                        {m.isProjected && revenueCap && m.sales >= revenueCap && (
+                        {m.isProjected && revenueCap && m.sales >= Math.round(revenueCap * 0.85) && (
                           <span className="text-[9px] text-orange-400 ml-0.5">上限</span>
                         )}
                       </td>
