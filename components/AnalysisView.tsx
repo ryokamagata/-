@@ -33,11 +33,15 @@ type TargetSuggestion = {
   }
 }
 
+type UtilRow = { dow: number; label: string; avgRate: number; days: number }
+
 type AnalysisData = {
   priceVolumeDecomposition: DecompositionRow[]
   storeDecomposition: Record<string, DecompositionRow[]>
   dowSummary: DowRow[]
   dowByStore: Record<string, DowRow[]>
+  dowUtilization: UtilRow[]
+  dowUtilByStore: Record<string, UtilRow[]>
   targetSuggestions: TargetSuggestion[]
   suggestedAnnualTotal: number
   existingAnnualTarget: number | null
@@ -258,6 +262,11 @@ function DowPanel({
     ? data.dowSummary
     : data.dowByStore[selectedStore] ?? []
 
+  const utilRows = selectedStore === 'all'
+    ? data.dowUtilization
+    : data.dowUtilByStore[selectedStore] ?? []
+  const hasUtilData = utilRows.length > 0
+
   const stores = Object.keys(data.dowByStore)
   const maxSales = rows.length > 0 ? Math.max(...rows.map(r => r.avgSales)) : 0
   const DOW_COLORS = ['text-red-400', 'text-gray-300', 'text-gray-300', 'text-gray-300', 'text-gray-300', 'text-gray-300', 'text-blue-400']
@@ -326,19 +335,32 @@ function DowPanel({
                   <th className="text-right py-2 px-1">平均売上</th>
                   <th className="text-right py-2 px-1">平均客数</th>
                   <th className="text-right py-2 px-1">客単価</th>
-                  <th className="text-right py-2 px-1">サンプル日数</th>
+                  {hasUtilData && <th className="text-right py-2 px-1">稼働率</th>}
+                  <th className="text-right py-2 px-1">日数</th>
                 </tr>
               </thead>
               <tbody>
-                {rows.map(r => (
-                  <tr key={r.dow} className="border-b border-gray-700/50 hover:bg-gray-700/30">
-                    <td className={`py-1.5 px-1 font-bold ${DOW_COLORS[r.dow]}`}>{r.label}</td>
-                    <td className="py-1.5 px-1 text-right text-white font-bold">{formatMan(r.avgSales)}</td>
-                    <td className="py-1.5 px-1 text-right text-gray-400">{Math.round(r.avgCustomers)}人</td>
-                    <td className="py-1.5 px-1 text-right text-gray-300">{formatYen(r.avgUnitPrice)}</td>
-                    <td className="py-1.5 px-1 text-right text-gray-500">{r.days}日</td>
-                  </tr>
-                ))}
+                {rows.map(r => {
+                  const util = utilRows.find(u => u.dow === r.dow)
+                  return (
+                    <tr key={r.dow} className="border-b border-gray-700/50 hover:bg-gray-700/30">
+                      <td className={`py-1.5 px-1 font-bold ${DOW_COLORS[r.dow]}`}>{r.label}</td>
+                      <td className="py-1.5 px-1 text-right text-white font-bold">{formatMan(r.avgSales)}</td>
+                      <td className="py-1.5 px-1 text-right text-gray-400">{Math.round(r.avgCustomers)}人</td>
+                      <td className="py-1.5 px-1 text-right text-gray-300">{formatYen(r.avgUnitPrice)}</td>
+                      {hasUtilData && (
+                        <td className="py-1.5 px-1 text-right">
+                          {util ? (
+                            <span className={util.avgRate >= 80 ? 'text-green-400' : util.avgRate >= 60 ? 'text-yellow-400' : 'text-red-400'}>
+                              {util.avgRate}%
+                            </span>
+                          ) : <span className="text-gray-600">—</span>}
+                        </td>
+                      )}
+                      <td className="py-1.5 px-1 text-right text-gray-500">{r.days}日</td>
+                    </tr>
+                  )
+                })}
               </tbody>
             </table>
 

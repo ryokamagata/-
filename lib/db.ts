@@ -154,6 +154,19 @@ function runMigrations(db: Database.Database) {
       created_at      TEXT NOT NULL DEFAULT (datetime('now')),
       UNIQUE(year, store_name)
     );
+
+    CREATE TABLE IF NOT EXISTS store_daily_utilization (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      date TEXT NOT NULL,
+      store TEXT NOT NULL,
+      bm_code TEXT NOT NULL,
+      utilization_rate REAL NOT NULL DEFAULT 0,
+      total_slots INTEGER NOT NULL DEFAULT 0,
+      booked_slots INTEGER NOT NULL DEFAULT 0,
+      scraped_at TEXT NOT NULL DEFAULT (datetime('now')),
+      UNIQUE(date, bm_code)
+    );
+    CREATE INDEX IF NOT EXISTS idx_sdu_date ON store_daily_utilization(date);
   `)
 
   // 2026年 月別売上目標のシード（既存データがなければ挿入）
@@ -683,6 +696,71 @@ export function getStoreDayOfWeekSales(fromYear: number, fromMonth: number, toYe
     store: string; dow: number; days: number; totalSales: number; totalCustomers: number;
     avgSales: number; avgCustomers: number
   }[]
+}
+
+/** 稼働率データを保存 */
+export function upsertUtilization(date: string, store: string, bmCode: string, rate: number, totalSlots: number, bookedSlots: number) {
+  const db = getDB()
+  db.prepare(`
+    INSERT INTO store_daily_utilization(date, store, bm_code, utilization_rate, total_slots, booked_slots)
+    VALUES(?, ?, ?, ?, ?, ?)
+    ON CONFLICT(date, bm_code) DO UPDATE SET
+      utilization_rate=excluded.utilization_rate,
+      total_slots=excluded.total_slots,
+      booked_slots=excluded.booked_slots,
+      scraped_at=datetime('now')
+  `).run(date, store, bmCode, rate, totalSlots, bookedSlots)
+}
+
+/** 曜日別稼働率 (指定範囲) */
+export function getDayOfWeekUtilization(fromYear: number, fromMonth: number, toYear: number, toMonth: number) {
+  const db = getDB()
+  const fromPrefix = `${fromYear}-${String(fromMonth).padStart(2, '0')}-01`
+  const toPrefix = `${toYear}-${String(toMonth).padStart(2, '0')}-31`
+  return db.prepare(`
+    SELECT CAST(strftime('%w', date) AS INTEGER) as dow,
+           COUNT(*) as days,
+           ROUND(AVG(utilization_rate), 1) as avgRate,
+           ROUND(1.0 * SUM(booked_slots) / NULLIF(SUM(total_slots), 0) * 100, 1) as actualRate
+    FROM store_daily_utilization
+    WHERE date >= ? AND date <= ?
+    GROUP BY CAST(strftime('%w', date) AS INTEGER)
+    ORDER BY dow ASC
+  `).all(fromPrefix, toPrefix) as { dow: number; days: number; avgRate: number; actualRate: number | null }[]
+}
+
+/** 店舗別の曜日別稼働率 (指定範囲) */
+export function getStoreDayOfWeekUtilization(fromYear: number, fromMonth: number, toYear: number, toMonth: number) {
+  const db = getDB()
+  const fromPrefix = `${fromYear}-${String(fromMonth).padStart(2, '0')}-01`
+  const toPrefix = `${toYear}-${String(toMonth).padStart(2, '0')}-31`
+  return db.prepare(`
+    SELECT store,
+           CAST(strftime('%w', date) AS INTEGER) as dow,
+           COUNT(*) as days,
+           ROUND(AVG(utilization_rate), 1) as avgRate,
+           ROUND(1.0 * SUM(booked_slots) / NULLIF(SUM(total_slots), 0) * 100, 1) as actualRate
+    FROM store_daily_utilization
+    WHERE date >= ? AND date <= ?
+    GROUP BY store, CAST(strftime('%w', date) AS INTEGER)
+    ORDER BY store ASC, dow ASC
+  `).all(fromPrefix, toPrefix) as { store: string; dow: number; days: number; avgRate: number; actualRate: number | null }[]
+}
+
+/** 月次稼働率サマリー */
+export function getMonthlyUtilization(fromYear: number, fromMonth: number, toYear: number, toMonth: number) {
+  const db = getDB()
+  const fromPrefix = `${fromYear}-${String(fromMonth).padStart(2, '0')}-01`
+  const toPrefix = `${toYear}-${String(toMonth).padStart(2, '0')}-31`
+  return db.prepare(`
+    SELECT substr(date, 1, 7) as month,
+           ROUND(AVG(utilization_rate), 1) as avgRate,
+           COUNT(DISTINCT date) as days
+    FROM store_daily_utilization
+    WHERE date >= ? AND date <= ?
+    GROUP BY substr(date, 1, 7)
+    ORDER BY month ASC
+  `).all(fromPrefix, toPrefix) as { month: string; avgRate: number; days: number }[]
 }
 
 // ─── CSV import functions ────────────────────────────────────────────────────

@@ -4,6 +4,8 @@ import {
   getMonthlyStoreSales,
   getDayOfWeekSales,
   getStoreDayOfWeekSales,
+  getDayOfWeekUtilization,
+  getStoreDayOfWeekUtilization,
   getMonthlyTargets,
   getAnnualTarget,
   getSeasonalIndex,
@@ -114,6 +116,29 @@ export async function GET() {
       avgSales: d.avgSales,
       avgCustomers: d.avgCustomers,
       avgUnitPrice: d.avgCustomers > 0 ? Math.round(d.totalSales / d.totalCustomers) : 0,
+    })
+  }
+
+  // ── 曜日別稼働率 ──────────────────────────────────────────────────
+  const utilAll = getDayOfWeekUtilization(dowFromYear, dowFromMonth, toYear, toMonth)
+  const utilByStore = getStoreDayOfWeekUtilization(dowFromYear, dowFromMonth, toYear, toMonth)
+
+  const dowUtilization = utilAll.map(u => ({
+    dow: u.dow,
+    label: DOW_LABELS[u.dow],
+    avgRate: u.avgRate,
+    days: u.days,
+  }))
+
+  const dowUtilByStore: Record<string, typeof dowUtilization> = {}
+  for (const u of utilByStore) {
+    if (isClosedStore(u.store)) continue
+    if (!dowUtilByStore[u.store]) dowUtilByStore[u.store] = []
+    dowUtilByStore[u.store].push({
+      dow: u.dow,
+      label: DOW_LABELS[u.dow],
+      avgRate: u.avgRate,
+      days: u.days,
     })
   }
 
@@ -230,6 +255,8 @@ export async function GET() {
     storeDecomposition,
     dowSummary,
     dowByStore: dowByStoreGrouped,
+    dowUtilization,
+    dowUtilByStore,
     targetSuggestions,
     suggestedAnnualTotal,
     existingAnnualTarget: annualTarget,

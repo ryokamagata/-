@@ -5,6 +5,7 @@ import {
   upsertMonthlyVisitors,
   upsertMonthlyUsers,
   upsertMonthlyCycle,
+  upsertUtilization,
 } from './db'
 import { STORES } from './stores'
 
@@ -357,6 +358,73 @@ function parseRepeatHTML(html: string): number {
   return newReturn3m
 }
 
+// ─── Utilization rate parsing ────────────────────────────────────────────────
+
+/** BM「データ」ページから稼働率を抽出 */
+export function parseUtilizationHTML(html: string): { date: string; rate: number; totalSlots: number; bookedSlots: number }[] {
+  const $ = cheerio.load(html)
+  const results: { date: string; rate: number; totalSlots: number; bookedSlots: number }[] = []
+
+  // BMのデータページのテーブルから日別の稼働率を抽出
+  $('table tbody tr').each((_, tr) => {
+    const cells = $(tr).find('td')
+    if (cells.length < 2) return
+
+    const dateText = $(cells[0]).text().trim()
+    const dateMatch = dateText.match(/(\d{4})[\/\-](\d{1,2})[\/\-](\d{1,2})/)
+    if (!dateMatch) return
+    const date = `${dateMatch[1]}-${dateMatch[2].padStart(2, '0')}-${dateMatch[3].padStart(2, '0')}`
+
+    // 稼働率のセルを探す（%表記）
+    let rate = 0
+    let totalSlots = 0
+    let bookedSlots = 0
+
+    cells.each((ci, cell) => {
+      const text = $(cell).text().trim()
+      const pctMatch = text.match(/([\d.]+)\s*%/)
+      if (pctMatch && ci > 0) {
+        rate = parseFloat(pctMatch[1])
+      }
+      // スロット数がある場合（例: "45/60"）
+      const slotMatch = text.match(/(\d+)\s*[\/]\s*(\d+)/)
+      if (slotMatch) {
+        bookedSlots = parseInt(slotMatch[1])
+        totalSlots = parseInt(slotMatch[2])
+      }
+    })
+
+    if (rate > 0 || bookedSlots > 0) {
+      results.push({ date, rate, totalSlots, bookedSlots })
+    }
+  })
+
+  return results
+}
+
+/** BMデータページ（稼働率）を取得 */
+async function fetchUtilizationPage(
+  cookies: Cookies,
+  startDate: string,
+  endDate: string
+): Promise<string> {
+  // BMの「データ」→「稼働率」ページ
+  // URL パターンは /manage/data/ または /manage/analysis/data
+  const params = buildAnalysisParams(startDate, endDate)
+  const url = `${BM_BASE}/manage/data/?${params.toString()}`
+  try {
+    const { response } = await fetchFollowRedirects(url, {}, cookies)
+    if (response.ok) return response.text()
+  } catch {
+    // fallback: try alternative URL pattern
+  }
+  // Alternative URL pattern
+  const url2 = `${BM_BASE}/manage/analysis/data?${params.toString()}`
+  const { response: res2 } = await fetchFollowRedirects(url2, {}, cookies)
+  if (!res2.ok) throw new Error(`HTTP ${res2.status} for utilization`)
+  return res2.text()
+}
+
 // ─── Analysis fetch ───────────────────────────────────────────────────────────
 
 async function fetchAnalysis(
@@ -476,6 +544,18 @@ export async function scrapeAllStores(
       const staffRows = parseStaffHTML(staffHtml)
       if (staffRows.length > 0) {
         upsertStaffSales(year, month, store.name, store.bm_code, staffRows)
+      }
+
+      // Utilization rate (稼働率)
+      try {
+        const utilHtml = await fetchUtilizationPage(storeCookies, startDate, endDate)
+        const utilRows = parseUtilizationHTML(utilHtml)
+        for (const u of utilRows) {
+          upsertUtilization(u.date, store.name, store.bm_code, u.rate, u.totalSlots, u.bookedSlots)
+        }
+        await new Promise((r) => setTimeout(r, 300))
+      } catch {
+        // utilization page failure is non-fatal
       }
 
       storesScraped++
