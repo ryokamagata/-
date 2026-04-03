@@ -41,6 +41,22 @@ const COMMON_SCORE_RANGES = [
 
 // ─── 中島社長 ──────────────────────────────────────────────────
 
+// 月別目標（Qごとにほぼ同じ、sum型なので月あたり = Q目標÷3）
+const NAKAJIMA_MONTHLY: Record<number, { turnover: number; debut: number; leaderIndex: number }> = {
+  1: { turnover: 0, debut: 1, leaderIndex: 1 },
+  2: { turnover: 0, debut: 2, leaderIndex: 2 },
+  3: { turnover: 1, debut: 1, leaderIndex: 1 },
+  4: { turnover: 1, debut: 2, leaderIndex: 1 },
+  5: { turnover: 1, debut: 2, leaderIndex: 1 },
+  6: { turnover: 1, debut: 1, leaderIndex: 1 },
+  7: { turnover: 1, debut: 1, leaderIndex: 1 },
+  8: { turnover: 0, debut: 2, leaderIndex: 2 },
+  9: { turnover: 1, debut: 1, leaderIndex: 1 },
+  10: { turnover: 0, debut: 1, leaderIndex: 2 },
+  11: { turnover: 0, debut: 2, leaderIndex: 2 },
+  12: { turnover: 1, debut: 1, leaderIndex: 1 },
+}
+
 const NAKAJIMA: ExecutiveConfig = {
   id: 'nakajima',
   name: '中島',
@@ -319,6 +335,7 @@ const KAMAGATA: ExecutiveConfig = {
 
 export const EXECUTIVES: ExecutiveConfig[] = [NAKAJIMA, MATSUDATE, CREATIVE]
 
+export const NAKAJIMA_MONTHLY_TARGETS = NAKAJIMA_MONTHLY
 export const MATSUDATE_MONTHLY_TARGETS = MATSUDATE_MONTHLY
 export const CREATIVE_MONTHLY_TARGETS = CREATIVE_MONTHLY
 

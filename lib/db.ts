@@ -750,10 +750,20 @@ export function setKpiValue(year: number, month: number, key: string, value: num
   `).run(year, month, key, value)
 }
 
-/** 指定年のKPI値をすべて取得 */
-export function getAllKpiValues(year: number): Record<string, Record<number, number>> {
+/** KPI_NO_DATA: 「データなし」を表す特殊値（0とは区別） */
+export const KPI_NO_DATA = -99999
+
+/** 指定年のKPI値をすべて取得（prefixでフィルタ可能） */
+export function getAllKpiValues(year: number, prefix?: string): Record<string, Record<number, number>> {
   const db = getDB()
-  const rows = db.prepare('SELECT month, kpi_key, value FROM executive_kpi WHERE year=?').all(year) as { month: number; kpi_key: string; value: number }[]
+  let rows: { month: number; kpi_key: string; value: number }[]
+  if (prefix) {
+    rows = db.prepare('SELECT month, kpi_key, value FROM executive_kpi WHERE year=? AND kpi_key LIKE ?')
+      .all(year, `${prefix}%`) as typeof rows
+  } else {
+    rows = db.prepare('SELECT month, kpi_key, value FROM executive_kpi WHERE year=? AND kpi_key NOT LIKE ?')
+      .all(year, 'kpi_target_%') as typeof rows
+  }
   const result: Record<string, Record<number, number>> = {}
   for (const r of rows) {
     if (!result[r.kpi_key]) result[r.kpi_key] = {}

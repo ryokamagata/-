@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import {
   getAllKpiValues,
   setKpiValue,
+  KPI_NO_DATA,
   getMonthlyTotalSales,
   getPerStoreVisitors,
   getPerStoreCycle,
@@ -77,31 +78,58 @@ export async function GET(req: NextRequest) {
   }
 
   // 月別目標マップを取得
+  const NAKAJIMA_MONTHLY = (await import('@/lib/kpiConfig')).NAKAJIMA_MONTHLY_TARGETS
   const MATSUDATE_MONTHLY = (await import('@/lib/kpiConfig')).MATSUDATE_MONTHLY_TARGETS
   const CREATIVE_MONTHLY = (await import('@/lib/kpiConfig')).CREATIVE_MONTHLY_TARGETS
 
-  // KPIキー→月別目標のマッピング
-  const monthlyTargetMap: Record<string, Record<number, number>> = {}
+  // 手動で上書きされた目標値を取得（kpi_target_xxx キーで保存）
+  const manualTargets = getAllKpiValues(year, 'kpi_target_')
+
+  // KPIキー→月別目標のマッピング（デフォルト値）
+  const defaultTargetMap: Record<string, Record<number, number>> = {}
   for (let mo = 1; mo <= 12; mo++) {
+    const nt = NAKAJIMA_MONTHLY[mo]
+    if (nt) {
+      if (!defaultTargetMap['turnover']) defaultTargetMap['turnover'] = {}
+      defaultTargetMap['turnover'][mo] = nt.turnover
+      if (!defaultTargetMap['debut']) defaultTargetMap['debut'] = {}
+      defaultTargetMap['debut'][mo] = nt.debut
+      if (!defaultTargetMap['leader_index']) defaultTargetMap['leader_index'] = {}
+      defaultTargetMap['leader_index'][mo] = nt.leaderIndex
+    }
     const mt = MATSUDATE_MONTHLY[mo]
     if (mt) {
-      if (!monthlyTargetMap['new_customers']) monthlyTargetMap['new_customers'] = {}
-      monthlyTargetMap['new_customers'][mo] = mt.newCustomers
-      if (!monthlyTargetMap['return_rate']) monthlyTargetMap['return_rate'] = {}
-      monthlyTargetMap['return_rate'][mo] = mt.returnRate
-      if (!monthlyTargetMap['productivity']) monthlyTargetMap['productivity'] = {}
-      monthlyTargetMap['productivity'][mo] = mt.productivity
+      if (!defaultTargetMap['new_customers']) defaultTargetMap['new_customers'] = {}
+      defaultTargetMap['new_customers'][mo] = mt.newCustomers
+      if (!defaultTargetMap['return_rate']) defaultTargetMap['return_rate'] = {}
+      defaultTargetMap['return_rate'][mo] = mt.returnRate
+      if (!defaultTargetMap['productivity']) defaultTargetMap['productivity'] = {}
+      defaultTargetMap['productivity'][mo] = mt.productivity
     }
     const ct = CREATIVE_MONTHLY[mo]
     if (ct) {
-      if (!monthlyTargetMap['hpb_styles']) monthlyTargetMap['hpb_styles'] = {}
-      monthlyTargetMap['hpb_styles'][mo] = ct.hpbStyles
-      if (!monthlyTargetMap['instagram_followers']) monthlyTargetMap['instagram_followers'] = {}
-      monthlyTargetMap['instagram_followers'][mo] = ct.instagram
-      if (!monthlyTargetMap['avg_unit_price']) monthlyTargetMap['avg_unit_price'] = {}
-      monthlyTargetMap['avg_unit_price'][mo] = ct.unitPrice
+      if (!defaultTargetMap['hpb_styles']) defaultTargetMap['hpb_styles'] = {}
+      defaultTargetMap['hpb_styles'][mo] = ct.hpbStyles
+      if (!defaultTargetMap['instagram_followers']) defaultTargetMap['instagram_followers'] = {}
+      defaultTargetMap['instagram_followers'][mo] = ct.instagram
+      if (!defaultTargetMap['avg_unit_price']) defaultTargetMap['avg_unit_price'] = {}
+      defaultTargetMap['avg_unit_price'][mo] = ct.unitPrice
     }
   }
+
+  // 手動目標があればデフォルトを上書き
+  const monthlyTargetMap: Record<string, Record<number, number>> = {}
+  for (const key of Object.keys(defaultTargetMap)) {
+    monthlyTargetMap[key] = { ...defaultTargetMap[key] }
+    const overrides = manualTargets[`kpi_target_${key}`] ?? {}
+    for (const [moStr, val] of Object.entries(overrides)) {
+      monthlyTargetMap[key][parseInt(moStr)] = val as number
+    }
+  }
+
+  // Q最終月かどうか判定（Q末のみ評価確定）
+  const qMonthsList = getQuarterMonths(currentQ)
+  const isQFinal = currentMonth === qMonthsList[qMonthsList.length - 1]
 
   // 各責任者のスコアカードを計算
   const executives = EXECUTIVES.map(exec => {
@@ -110,16 +138,29 @@ export async function GET(req: NextRequest) {
       const autoValues = autoKpis[kpi.key] ?? {}
       const manualValues = manualKpis[kpi.key] ?? {}
       // 手動入力が優先、なければ自動値
-      const monthlyValues: Record<number, number> = {}
+      // KPI_NO_DATA(-99999)は「データなし」として記録されている → nullとして扱う
+      const monthlyValues: Record<number, number | null> = {}
       for (let mo = 1; mo <= 12; mo++) {
         if (manualValues[mo] !== undefined && manualValues[mo] !== null) {
-          monthlyValues[mo] = manualValues[mo]
+          monthlyValues[mo] = manualValues[mo] === KPI_NO_DATA ? null : manualValues[mo]
         } else if (autoValues[mo] !== undefined && autoValues[mo] !== null) {
           monthlyValues[mo] = autoValues[mo]
         }
       }
 
-      // Q期間の値を集計
+      // 入力状態を別途追跡（「未入力」vs「データなし」vs「値あり」）
+      const inputStatus: Record<number, 'not_entered' | 'no_data' | 'has_value'> = {}
+      for (const m of qMonthsList) {
+        if (manualValues[m] === KPI_NO_DATA) {
+          inputStatus[m] = 'no_data'
+        } else if (monthlyValues[m] !== undefined && monthlyValues[m] !== null) {
+          inputStatus[m] = 'has_value'
+        } else {
+          inputStatus[m] = 'not_entered'
+        }
+      }
+
+      // Q期間の値を集計（nullは除外）
       const qMonths = getQuarterMonths(currentQ)
       const qValues = qMonths
         .map(m => monthlyValues[m])
@@ -149,10 +190,22 @@ export async function GET(req: NextRequest) {
       const monthlyProgress = qMonths.map(m => {
         const actual = monthlyValues[m] ?? null
         const monthTarget = kpiMonthlyTargets[m] ?? null
-        let status: 'achieved' | 'on_track' | 'behind' | 'no_data' = 'no_data'
-        if (actual !== null && monthTarget !== null && monthTarget > 0) {
-          const ratio = isReverse ? (monthTarget / actual) : (actual / monthTarget)
+        const iStatus = inputStatus[m] ?? 'not_entered'
+        let status: 'achieved' | 'on_track' | 'behind' | 'no_data' | 'no_data_entered' = 'no_data'
+        if (iStatus === 'no_data') {
+          status = 'no_data_entered'
+        } else if (actual !== null && monthTarget !== null && monthTarget > 0) {
+          const ratio = isReverse
+            ? (actual === 0 ? 2 : monthTarget / actual)
+            : (actual / monthTarget)
           status = ratio >= 1 ? 'achieved' : ratio >= 0.8 ? 'on_track' : 'behind'
+        } else if (actual === 0 && iStatus === 'has_value') {
+          // 0で入力された場合
+          if (isReverse) {
+            status = 'achieved' // 離職0人は達成
+          } else {
+            status = monthTarget !== null && monthTarget > 0 ? 'behind' : 'no_data'
+          }
         }
         return {
           month: m,
@@ -160,6 +213,7 @@ export async function GET(req: NextRequest) {
           target: monthTarget,
           autoValue: autoValues[m] ?? null,
           manualValue: manualValues[m] ?? null,
+          inputStatus: iStatus,
           status,
         }
       })
@@ -203,15 +257,35 @@ export async function GET(req: NextRequest) {
     year,
     currentQuarter: currentQ,
     currentMonth,
+    isQFinal,
     quarterLabel: `${currentQ}Q（${getQuarterMonths(currentQ).join('・')}月）`,
     executives,
   })
 }
 
-// KPI手動入力
+// KPI手動入力・目標変更
 export async function POST(req: NextRequest) {
   const body = await req.json()
-  const { year, month, key, value } = body
+  const { year, month, key, value, type } = body
+
+  // type: 'target' → 目標値を保存、それ以外 → 実績値を保存
+  if (type === 'target') {
+    if (!year || !month || !key || value === undefined) {
+      return NextResponse.json({ error: 'Missing params' }, { status: 400 })
+    }
+    setKpiValue(year, month, `kpi_target_${key}`, value)
+    return NextResponse.json({ ok: true })
+  }
+
+  // type: 'no_data' → データなしとして保存
+  if (type === 'no_data') {
+    if (!year || !month || !key) {
+      return NextResponse.json({ error: 'Missing params' }, { status: 400 })
+    }
+    setKpiValue(year, month, key, KPI_NO_DATA)
+    return NextResponse.json({ ok: true })
+  }
+
   if (!year || !month || !key || value === undefined) {
     return NextResponse.json({ error: 'Missing params' }, { status: 400 })
   }
