@@ -332,6 +332,19 @@ export function deleteStoreOpeningPlan(id: number): void {
  * 成長カーブ: 1ヶ月目30% → 2ヶ月目50% → 3ヶ月目70% → 4ヶ月目85% → 5ヶ月目95% → 6ヶ月目以降100%
  * 6ヶ月目以降は前年の全店舗売上の月別変動率を反映（繁忙期/閑散期を加味）
  */
+export function getSeasonalIndex(year: number): Record<number, number> {
+  const prevYearMonthly = getMonthlyTotalSales(year - 1, 1, year - 1, 12)
+  const index: Record<number, number> = {}
+  if (prevYearMonthly.length >= 6) {
+    const avg = prevYearMonthly.reduce((s, m) => s + m.sales, 0) / prevYearMonthly.length
+    for (const m of prevYearMonthly) {
+      const [, mStr] = m.month.split('-')
+      index[parseInt(mStr)] = avg > 0 ? Math.round((m.sales / avg) * 100) / 100 : 1.0
+    }
+  }
+  return index
+}
+
 export function getStoreOpeningRevenue(year: number): { month: number; revenue: number; storeName: string }[] {
   const plans = getStoreOpeningPlans(year)
   const growthCurve = [0.30, 0.50, 0.70, 0.85, 0.95, 1.0]

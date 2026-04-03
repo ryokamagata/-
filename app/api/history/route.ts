@@ -6,6 +6,7 @@ import {
   getAnnualTarget,
   getStoreOpeningPlans,
   getStoreOpeningRevenue,
+  getSeasonalIndex,
 } from '@/lib/db'
 import { normalizeStaffName } from '@/lib/staffNormalize'
 
@@ -233,16 +234,16 @@ export async function GET() {
 
           // ブレンド: 月が進むほどペースを信頼
           const monthProgress = daysElapsed / daysInCurrentMonth
-          // 0-30%: YoY 70%, pace 30%
-          // 30-70%: 線形補間
-          // 70-100%: YoY 20%, pace 80%
+          // 0-30%: ペース20% / YoY80%（月初はYoY重視）
+          // 30-70%: 線形で移行
+          // 70-100%: ペース80% / YoY20%（精度が上がるにつれペースに移行）
           let paceWeight: number
           if (monthProgress < 0.3) {
-            paceWeight = 0.3
+            paceWeight = 0.2
           } else if (monthProgress > 0.7) {
             paceWeight = 0.8
           } else {
-            paceWeight = 0.3 + (monthProgress - 0.3) / 0.4 * 0.5
+            paceWeight = 0.2 + (monthProgress - 0.3) / 0.4 * 0.6
           }
 
           currentMonthEstimate = Math.round(paceEstimate * paceWeight + yoyEstimate * (1 - paceWeight))
@@ -364,6 +365,7 @@ export async function GET() {
 
   // 出店計画データ
   const storeOpeningPlans = getStoreOpeningPlans()
+  const seasonalIndex = getSeasonalIndex(toYear)
 
   return NextResponse.json({
     months,
@@ -379,5 +381,6 @@ export async function GET() {
     annualSummaries,
     projection,
     storeOpeningPlans,
+    seasonalIndex,
   })
 }

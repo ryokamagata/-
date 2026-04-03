@@ -209,14 +209,17 @@ export async function GET() {
         : prevYearSales
     }
 
-    // ブレンド比率（月が進むほどペースを信頼）
+    // ブレンド比率（月初はYoY重視、精度が上がるにつれペースに移行）
+    // 0-30%: ペース20% / YoY80%
+    // 30-70%: 線形で移行
+    // 70-100%: ペース80% / YoY20%
     let paceWeight: number
     if (monthProgressRate < 0.3) {
-      paceWeight = 0.3
+      paceWeight = 0.2
     } else if (monthProgressRate > 0.7) {
       paceWeight = 0.8
     } else {
-      paceWeight = 0.3 + (monthProgressRate - 0.3) / 0.4 * 0.5
+      paceWeight = 0.2 + (monthProgressRate - 0.3) / 0.4 * 0.6
     }
 
     // 標準予測（日割りペース × YoY のブレンド）
@@ -230,10 +233,10 @@ export async function GET() {
     // 堅実予測 = 標準の95%（安定した予測幅）
     const conservative = Math.round(standard * 0.95)
 
-    // 高め見込み = max(ペース着地, YoY着地) の105%、または標準の105%
+    // 高め見込み = max(ペース着地, YoY着地) の103%、または標準の105%
     let optimistic: number
     if (yoyEstimate !== null && yoyEstimate > 0) {
-      optimistic = Math.round(Math.max(simplePaceEstimate, yoyEstimate) * 1.05)
+      optimistic = Math.round(Math.max(simplePaceEstimate, yoyEstimate) * 1.03)
     } else {
       optimistic = Math.round(standard * 1.05)
     }

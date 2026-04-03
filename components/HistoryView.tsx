@@ -73,6 +73,7 @@ type HistoryData = {
   annualSummaries: AnnualSummary[]
   projection: Projection | null
   storeOpeningPlans?: StoreOpeningPlan[]
+  seasonalIndex?: Record<number, number>
 }
 
 type SubTab = 'total' | 'store' | 'staff'
@@ -430,6 +431,7 @@ function TotalHistory({ data, onRefresh }: { data: HistoryData; onRefresh: () =>
         plans={data.storeOpeningPlans ?? []}
         currentYear={data.projection?.currentYear ?? new Date().getFullYear()}
         newStoreTotal={data.projection?.newStoreTotal}
+        seasonalIndex={data.seasonalIndex}
         onRefresh={onRefresh}
       />
 
@@ -878,11 +880,13 @@ function StoreOpeningPlanSection({
   plans,
   currentYear,
   newStoreTotal,
+  seasonalIndex,
   onRefresh,
 }: {
   plans: StoreOpeningPlan[]
   currentYear: number
   newStoreTotal?: number
+  seasonalIndex?: Record<number, number>
   onRefresh: () => void
 }) {
   const [open, setOpen] = useState(false)
@@ -1054,6 +1058,34 @@ function StoreOpeningPlanSection({
                   </div>
                 )
               })}
+            </div>
+          )}
+
+          {/* 季節変動率 */}
+          {seasonalIndex && Object.keys(seasonalIndex).length > 0 && (
+            <div className="bg-gray-700/30 rounded-lg p-3">
+              <p className="text-xs text-gray-400 font-medium mb-2">
+                季節変動率（前年実績ベース / 6ヶ月目以降に適用）
+              </p>
+              <div className="grid grid-cols-4 sm:grid-cols-6 gap-1.5">
+                {Array.from({ length: 12 }, (_, i) => i + 1).map(mo => {
+                  const rate = seasonalIndex[mo]
+                  if (rate === undefined) return null
+                  const pct = Math.round(rate * 100)
+                  const color = pct >= 110 ? 'text-emerald-400 bg-emerald-900/30'
+                    : pct >= 95 ? 'text-gray-300 bg-gray-700/50'
+                    : 'text-orange-400 bg-orange-900/30'
+                  return (
+                    <div key={mo} className={`text-center rounded px-1 py-1 ${color}`}>
+                      <p className="text-[10px] text-gray-500">{mo}月</p>
+                      <p className="text-xs font-bold">{pct}%</p>
+                    </div>
+                  )
+                })}
+              </div>
+              <p className="text-[10px] text-gray-600 mt-1.5">
+                ※ 100%=年間平均 / 繁忙月は100%超、閑散月は100%未満で出店計画の予測売上に反映
+              </p>
             </div>
           )}
 
