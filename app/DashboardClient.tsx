@@ -11,6 +11,8 @@ import UploadZone from '@/components/UploadZone'
 import ScrapeButton from '@/components/ScrapeButton'
 import HistoryView from '@/components/HistoryView'
 import ReviewPanel from '@/components/ReviewPanel'
+import StaffDetailPanel from '@/components/StaffDetailPanel'
+import ColumnPanel from '@/components/ColumnPanel'
 import type { DashboardData } from '@/lib/types'
 
 type MainTab = 'current' | 'history'
@@ -160,6 +162,19 @@ export default function DashboardClient() {
 
           {/* 今月のレビュー */}
           {!noData && <ReviewPanel data={data} />}
+
+          {/* 数字から読む改善コラム */}
+          {!noData && <ColumnPanel data={data} />}
+
+          {/* メンバー別パフォーマンス */}
+          {!noData && data.staffDetail && data.staffDetail.length > 0 && (
+            <StaffDetailPanel
+              staffDetail={data.staffDetail}
+              today={data.today}
+              daysInMonth={data.daysInMonth}
+              month={data.month}
+            />
+          )}
 
           {/* 進捗ゲージ */}
           {data.monthlyTarget && data.monthlyTarget > 0 && (

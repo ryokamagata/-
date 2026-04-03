@@ -77,4 +77,19 @@ export type DashboardData = {
   appMembers: number              // アプリ会員数
   appMemberRate: string           // アプリ会員率(%)
   forecastDetail: ForecastDetail | null  // 着地予測詳細（3パターン+根拠）
+  // スタッフ別詳細（メンバーごとの数字・実績・予測・改善ポイント）
+  staffDetail: StaffDetailItem[]
+}
+
+// スタッフ別詳細
+export type StaffDetailItem = {
+  staff: string
+  store: string
+  currentSales: number       // 今月売上
+  prevMonthSales: number     // 前月売上
+  prev2MonthSales: number    // 前々月売上
+  growthRate: number | null  // 前月比成長率(%)
+  predictedSales: number     // 今月着地予測
+  rank: number               // 今月ランキング
+  trend: 'up' | 'down' | 'stable'  // トレンド
 }

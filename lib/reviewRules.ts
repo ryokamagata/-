@@ -1,4 +1,4 @@
-import type { DashboardData } from './types'
+import type { DashboardData, StaffDetailItem } from './types'
 
 // ━━━ 型定義 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
@@ -263,6 +263,40 @@ export function generateMonthlyReview(data: DashboardData): ReviewItem[] {
         title: `スタッフ間売上格差 ${topBottomRatio}倍（${top.staff} vs ${bottom.staff}）`,
         detail: `1位${top.staff}(${fmtMan(top.sales)}) / 最下位${bottom.staff}(${fmtMan(bottom.sales)})。上位の技術・接客ノウハウが属人化している可能性`,
         action: 'トップスタイリストの施術フロー・カウンセリング手法を動画化して共有。下位スタッフにはアシスタントとのペア施術で学ばせる体制を。月次1on1で目標設定と振り返り',
+        priority: 2,
+      })
+    }
+  }
+
+  // ── スタッフ別トレンド分析（staffDetail利用）──────────────────────
+  const staffDetail = data.staffDetail ?? []
+  if (staffDetail.length >= 3) {
+    // 3ヶ月連続下降スタッフ
+    const declining3m = staffDetail.filter(s =>
+      s.prev2MonthSales > 0 && s.prevMonthSales > 0 &&
+      s.prevMonthSales < s.prev2MonthSales &&
+      s.predictedSales < s.prevMonthSales
+    )
+    if (declining3m.length >= 2) {
+      items.push({
+        type: 'warning',
+        title: `${declining3m.length}名が3ヶ月連続で売上減少`,
+        detail: declining3m.slice(0, 3).map(s =>
+          `${s.staff}(${fmtMan(s.prev2MonthSales)}→${fmtMan(s.prevMonthSales)}→${fmtMan(s.predictedSales)}予測)`
+        ).join('、'),
+        action: '継続的な下降は構造的問題の可能性。個別面談で離脱要因（指名客減・技術・モチベーション）を特定し、ペア施術やカウンセリング改善の支援体制を構築。月次1on1で進捗を追跡',
+        priority: 1,
+      })
+    }
+
+    // 急成長スタッフのノウハウ横展開
+    const highGrowth = staffDetail.filter(s => s.growthRate !== null && s.growthRate > 30)
+    if (highGrowth.length >= 1 && staffDetail.filter(s => s.trend === 'down').length >= 2) {
+      items.push({
+        type: 'insight',
+        title: `急成長メンバーのノウハウを横展開`,
+        detail: `${highGrowth.slice(0, 3).map(s => `${s.staff}(+${s.growthRate?.toFixed(0)}%)`).join('、')}が大幅成長。下降メンバーとの差を分析し、成功パターンを共有することで全体底上げが可能`,
+        action: '急成長スタッフに朝礼でのノウハウ共有（5分）を依頼。カウンセリングトーク・オプション提案の手法を具体的に。下降スタッフとのペア施術も有効',
         priority: 2,
       })
     }

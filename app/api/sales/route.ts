@@ -10,10 +10,11 @@ import {
   getPerStoreUsers,
   getPerStoreCycle,
   getMonthlyTotalSales,
+  getStaffSalesForMonth,
 } from '@/lib/db'
 import { computeForecast } from '@/lib/forecastEngine'
-import { mergeStaffSales } from '@/lib/staffNormalize'
-import type { DailySales, DashboardData, ForecastDetail } from '@/lib/types'
+import { mergeStaffSales, normalizeStaffName } from '@/lib/staffNormalize'
+import type { DailySales, DashboardData, ForecastDetail, StaffDetailItem } from '@/lib/types'
 
 export const revalidate = 0
 
@@ -253,6 +254,59 @@ export async function GET() {
     }
   }
 
+  // ── スタッフ別詳細（メンバーごとの数字・実績・予測・改善ポイント） ──────────
+  const staffDetail: StaffDetailItem[] = (() => {
+    // 前月・前々月のスタッフ売上を取得
+    const prevMonthDate = month === 1 ? { y: year - 1, m: 12 } : { y: year, m: month - 1 }
+    const prev2MonthDate = prevMonthDate.m === 1
+      ? { y: prevMonthDate.y - 1, m: 12 }
+      : { y: prevMonthDate.y, m: prevMonthDate.m - 1 }
+
+    const prevStaffRaw = getStaffSalesForMonth(prevMonthDate.y, prevMonthDate.m)
+    const prev2StaffRaw = getStaffSalesForMonth(prev2MonthDate.y, prev2MonthDate.m)
+
+    // 正規化してマップ化
+    const prevMap = new Map<string, number>()
+    for (const r of prevStaffRaw) prevMap.set(normalizeStaffName(r.staff), r.sales)
+    const prev2Map = new Map<string, number>()
+    for (const r of prev2StaffRaw) prev2Map.set(normalizeStaffName(r.staff), r.sales)
+
+    // 所属店舗マップを先に構築
+    const currentStaffWithStore = getStaffSalesForMonth(year, month)
+    const storeMap = new Map<string, string>()
+    for (const r of currentStaffWithStore) storeMap.set(normalizeStaffName(r.staff), r.store)
+
+    // 今月のスタッフ売上（既にmerge済みのstaffBreakdown利用）
+    return staffBreakdown.map((s, idx) => {
+      const normalized = normalizeStaffName(s.staff)
+      const prevSales = prevMap.get(normalized) ?? 0
+      const prev2Sales = prev2Map.get(normalized) ?? 0
+      const growthRate = prevSales > 0
+        ? ((s.sales - prevSales) / prevSales) * 100
+        : null
+      const predictedSales = effectiveDays > 0
+        ? Math.round((s.sales / effectiveDays) * daysInMonth)
+        : s.sales
+      let trend: 'up' | 'down' | 'stable' = 'stable'
+      if (growthRate !== null) {
+        if (growthRate > 5) trend = 'up'
+        else if (growthRate < -5) trend = 'down'
+      }
+
+      return {
+        staff: s.staff,
+        store: storeMap.get(normalizeStaffName(s.staff)) ?? '',
+        currentSales: s.sales,
+        prevMonthSales: prevSales,
+        prev2MonthSales: prev2Sales,
+        growthRate: growthRate !== null ? Math.round(growthRate * 10) / 10 : null,
+        predictedSales,
+        rank: idx + 1,
+        trend,
+      }
+    })
+  })()
+
   const response: DashboardData = {
     year,
     month,
@@ -283,6 +337,7 @@ export async function GET() {
     appMembers,
     appMemberRate,
     forecastDetail,
+    staffDetail,
   }
 
   return NextResponse.json(response)

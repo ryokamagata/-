@@ -585,6 +585,18 @@ export function getMonthlyStaffSales(fromYear: number, fromMonth: number, toYear
   `).all(fromYear * 100 + fromMonth, toYear * 100 + toMonth) as { year: number; month: number; staff: string; store: string; sales: number }[]
 }
 
+/** スタッフ別の月次売上（単月・店舗付き） */
+export function getStaffSalesForMonth(year: number, month: number) {
+  const db = getDB()
+  return db.prepare(`
+    SELECT staff, store, SUM(sales) as sales
+    FROM staff_period_sales
+    WHERE year=? AND month=?
+    GROUP BY staff
+    ORDER BY sales DESC
+  `).all(year, month) as { staff: string; store: string; sales: number }[]
+}
+
 /** スタッフ別の月次売上（店舗付き） */
 export function getMonthlyStaffSalesWithStore(fromYear: number, fromMonth: number, toYear: number, toMonth: number) {
   const db = getDB()
