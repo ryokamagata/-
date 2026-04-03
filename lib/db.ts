@@ -639,6 +639,52 @@ export function getMonthlyStaffSalesWithStore(fromYear: number, fromMonth: numbe
   `).all(fromYear * 100 + fromMonth, toYear * 100 + toMonth) as { year: number; month: number; staff: string; store: string; sales: number }[]
 }
 
+/** 曜日別の売上・客数集計 (指定範囲) */
+export function getDayOfWeekSales(fromYear: number, fromMonth: number, toYear: number, toMonth: number) {
+  const db = getDB()
+  const fromPrefix = `${fromYear}-${String(fromMonth).padStart(2, '0')}-01`
+  const toPrefix = `${toYear}-${String(toMonth).padStart(2, '0')}-31`
+  // SQLiteのstrftime('%w', date)は 0=日, 1=月, ... 6=土
+  return db.prepare(`
+    SELECT CAST(strftime('%w', date) AS INTEGER) as dow,
+           COUNT(DISTINCT date) as days,
+           SUM(sales) as totalSales,
+           SUM(customers) as totalCustomers,
+           ROUND(1.0 * SUM(sales) / COUNT(DISTINCT date)) as avgSales,
+           ROUND(1.0 * SUM(customers) / COUNT(DISTINCT date)) as avgCustomers
+    FROM store_daily_sales
+    WHERE date >= ? AND date <= ?
+    GROUP BY CAST(strftime('%w', date) AS INTEGER)
+    ORDER BY dow ASC
+  `).all(fromPrefix, toPrefix) as {
+    dow: number; days: number; totalSales: number; totalCustomers: number;
+    avgSales: number; avgCustomers: number
+  }[]
+}
+
+/** 店舗別の曜日別売上 (指定範囲) */
+export function getStoreDayOfWeekSales(fromYear: number, fromMonth: number, toYear: number, toMonth: number) {
+  const db = getDB()
+  const fromPrefix = `${fromYear}-${String(fromMonth).padStart(2, '0')}-01`
+  const toPrefix = `${toYear}-${String(toMonth).padStart(2, '0')}-31`
+  return db.prepare(`
+    SELECT store,
+           CAST(strftime('%w', date) AS INTEGER) as dow,
+           COUNT(DISTINCT date) as days,
+           SUM(sales) as totalSales,
+           SUM(customers) as totalCustomers,
+           ROUND(1.0 * SUM(sales) / COUNT(DISTINCT date)) as avgSales,
+           ROUND(1.0 * SUM(customers) / COUNT(DISTINCT date)) as avgCustomers
+    FROM store_daily_sales
+    WHERE date >= ? AND date <= ?
+    GROUP BY store, CAST(strftime('%w', date) AS INTEGER)
+    ORDER BY store ASC, dow ASC
+  `).all(fromPrefix, toPrefix) as {
+    store: string; dow: number; days: number; totalSales: number; totalCustomers: number;
+    avgSales: number; avgCustomers: number
+  }[]
+}
+
 // ─── CSV import functions ────────────────────────────────────────────────────
 
 export function importCSVRows(rows: BMRow[], fileHash: string, filename: string): number {

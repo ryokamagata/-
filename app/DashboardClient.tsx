@@ -10,10 +10,11 @@ import TargetInput from '@/components/TargetInput'
 import UploadZone from '@/components/UploadZone'
 import ScrapeButton from '@/components/ScrapeButton'
 import HistoryView from '@/components/HistoryView'
+import AnalysisView from '@/components/AnalysisView'
 import ColumnPanel from '@/components/ColumnPanel'
 import type { DashboardData } from '@/lib/types'
 
-type MainTab = 'current' | 'history'
+type MainTab = 'current' | 'history' | 'analysis'
 
 const CONFIDENCE_LABEL = { high: '高', medium: '中', low: '低' } as const
 
@@ -87,12 +88,21 @@ export default function DashboardClient() {
             )}
           </p>
         </div>
-        <TargetInput
+        <div className="flex items-center gap-2">
+          <TargetInput
             year={data.year}
             month={data.month}
             currentTarget={data.monthlyTarget}
             onSaved={refresh}
           />
+          <a
+            href="/report"
+            target="_blank"
+            className="text-xs px-3 py-1.5 bg-gray-700 text-gray-300 hover:bg-gray-600 rounded-md transition-colors whitespace-nowrap"
+          >
+            月次レポート
+          </a>
+        </div>
       </div>
 
       {/* メインタブ切替 */}
@@ -117,10 +127,23 @@ export default function DashboardClient() {
         >
           過去実績
         </button>
+        <button
+          onClick={() => setMainTab('analysis')}
+          className={`flex-1 text-sm py-2 px-4 rounded-md transition-colors font-medium ${
+            mainTab === 'analysis'
+              ? 'bg-blue-600 text-white'
+              : 'text-gray-400 hover:text-gray-200'
+          }`}
+        >
+          分析
+        </button>
       </div>
 
       {/* 過去実績タブ */}
       {mainTab === 'history' && <HistoryView />}
+
+      {/* 分析タブ */}
+      {mainTab === 'analysis' && <AnalysisView />}
 
       {/* 今月ダッシュボード */}
       {mainTab === 'current' && <>
