@@ -892,17 +892,33 @@ function StoreOpeningPlanSection({
   const [maxRevenue, setMaxRevenue] = useState('')
   const [seats, setSeats] = useState('')
   const [saving, setSaving] = useState(false)
+  const [editingId, setEditingId] = useState<number | null>(null)
 
   const yearPlans = plans.filter(p => p.year === year)
 
-  // 成長カーブ
   const growthCurve = [0.30, 0.50, 0.70, 0.85, 0.95, 1.0]
+
+  const resetForm = () => {
+    setStoreName('')
+    setMaxRevenue('')
+    setSeats('')
+    setOpeningMonth(1)
+    setEditingId(null)
+  }
+
+  const startEdit = (plan: StoreOpeningPlan) => {
+    setEditingId(plan.id)
+    setStoreName(plan.store_name)
+    setOpeningMonth(plan.opening_month)
+    setMaxRevenue(String(Math.round(plan.max_monthly_revenue / 10000)))
+    setSeats(plan.seats > 0 ? String(plan.seats) : '')
+    setYear(plan.year)
+  }
 
   const handleSave = async () => {
     if (!storeName || !maxRevenue) return
     let revenue = parseInt(maxRevenue.replace(/[,¥\s万億]/g, ''))
     if (isNaN(revenue) || revenue <= 0) return
-    // 万の自動補正
     if (revenue < 10000) revenue = revenue * 10000
 
     const seatNum = parseInt(seats) || 0
@@ -919,9 +935,7 @@ function StoreOpeningPlanSection({
           seats: seatNum,
         }),
       })
-      setStoreName('')
-      setMaxRevenue('')
-      setSeats('')
+      resetForm()
       onRefresh()
     } finally {
       setSaving(false)
@@ -930,6 +944,7 @@ function StoreOpeningPlanSection({
 
   const handleDelete = async (id: number) => {
     await fetch(`/api/store-plans?id=${id}`, { method: 'DELETE' })
+    if (editingId === id) resetForm()
     onRefresh()
   }
 
@@ -956,9 +971,7 @@ function StoreOpeningPlanSection({
         </div>
         <svg
           className={`w-4 h-4 text-gray-400 transition-transform ${open ? 'rotate-180' : ''}`}
-          fill="none"
-          stroke="currentColor"
-          viewBox="0 0 24 24"
+          fill="none" stroke="currentColor" viewBox="0 0 24 24"
         >
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
         </svg>
@@ -972,7 +985,7 @@ function StoreOpeningPlanSection({
             {[currentYear, currentYear + 1, currentYear + 2].map(y => (
               <button
                 key={y}
-                onClick={() => setYear(y)}
+                onClick={() => { setYear(y); resetForm() }}
                 className={`text-xs px-2 py-1 rounded ${
                   year === y
                     ? 'bg-purple-600 text-white'
@@ -993,9 +1006,10 @@ function StoreOpeningPlanSection({
                   const rate = i < growthCurve.length ? growthCurve[i] : 1.0
                   return Math.round(plan.max_monthly_revenue * rate)
                 }).reduce((s, v) => s + v, 0)
+                const isEditing = editingId === plan.id
 
                 return (
-                  <div key={plan.id} className="bg-gray-700/50 rounded-lg p-3">
+                  <div key={plan.id} className={`rounded-lg p-3 ${isEditing ? 'bg-purple-900/30 border border-purple-700/50' : 'bg-gray-700/50'}`}>
                     <div className="flex items-start justify-between gap-2">
                       <div className="min-w-0">
                         <p className="text-sm font-medium text-white">
@@ -1015,15 +1029,27 @@ function StoreOpeningPlanSection({
                           {plan.year}年 寄与: {formatOkuMan(yearRevenue)}
                         </p>
                         <p className="text-[10px] text-gray-500 mt-0.5 hidden sm:block">
-                          成長カーブ: 1ヶ月目30% → 2ヶ月目50% → 3ヶ月目70% → 4ヶ月目85% → 5ヶ月目95% → 6ヶ月目〜100%
+                          成長カーブ: 1ヶ月目30% → 50% → 70% → 85% → 95% → 6ヶ月目〜季節変動反映
                         </p>
                       </div>
-                      <button
-                        onClick={() => handleDelete(plan.id)}
-                        className="text-xs text-red-400 hover:text-red-300 px-2 py-1 shrink-0"
-                      >
-                        削除
-                      </button>
+                      <div className="flex gap-1 shrink-0">
+                        <button
+                          onClick={() => isEditing ? resetForm() : startEdit(plan)}
+                          className={`text-xs px-2 py-1 rounded ${
+                            isEditing
+                              ? 'text-gray-400 hover:text-gray-200 bg-gray-600'
+                              : 'text-blue-400 hover:text-blue-300'
+                          }`}
+                        >
+                          {isEditing ? 'キャンセル' : '編集'}
+                        </button>
+                        <button
+                          onClick={() => handleDelete(plan.id)}
+                          className="text-xs text-red-400 hover:text-red-300 px-2 py-1"
+                        >
+                          削除
+                        </button>
+                      </div>
                     </div>
                   </div>
                 )
@@ -1031,9 +1057,11 @@ function StoreOpeningPlanSection({
             </div>
           )}
 
-          {/* 新規追加フォーム */}
-          <div className="bg-gray-700/30 rounded-lg p-3 space-y-3">
-            <p className="text-xs text-gray-400 font-medium">新規出店を追加</p>
+          {/* 追加/編集フォーム */}
+          <div className={`rounded-lg p-3 space-y-3 ${editingId ? 'bg-purple-900/20 border border-purple-700/30' : 'bg-gray-700/30'}`}>
+            <p className="text-xs text-gray-400 font-medium">
+              {editingId ? '出店計画を編集' : '新規出店を追加'}
+            </p>
             <div className="grid grid-cols-2 gap-2">
               <div>
                 <label className="text-[10px] text-gray-500">店舗名</label>
@@ -1078,13 +1106,23 @@ function StoreOpeningPlanSection({
                 />
               </div>
             </div>
-            <button
-              onClick={handleSave}
-              disabled={saving || !storeName || !maxRevenue}
-              className="text-xs bg-purple-600 hover:bg-purple-500 disabled:opacity-50 text-white px-4 py-1.5 rounded"
-            >
-              {saving ? '保存中...' : '追加'}
-            </button>
+            <div className="flex gap-2">
+              <button
+                onClick={handleSave}
+                disabled={saving || !storeName || !maxRevenue}
+                className="text-xs bg-purple-600 hover:bg-purple-500 disabled:opacity-50 text-white px-4 py-1.5 rounded"
+              >
+                {saving ? '保存中...' : editingId ? '更新' : '追加'}
+              </button>
+              {editingId && (
+                <button
+                  onClick={resetForm}
+                  className="text-xs text-gray-400 hover:text-gray-200 px-4 py-1.5"
+                >
+                  キャンセル
+                </button>
+              )}
+            </div>
           </div>
         </div>
       )}

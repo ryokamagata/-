@@ -328,20 +328,37 @@ export function deleteStoreOpeningPlan(id: number): void {
 }
 
 /**
- * 出店計画から月別の予測売上を算出（成長カーブ付き）
+ * 出店計画から月別の予測売上を算出（成長カーブ + 季節変動率）
  * 成長カーブ: 1ヶ月目30% → 2ヶ月目50% → 3ヶ月目70% → 4ヶ月目85% → 5ヶ月目95% → 6ヶ月目以降100%
+ * 6ヶ月目以降は前年の全店舗売上の月別変動率を反映（繁忙期/閑散期を加味）
  */
 export function getStoreOpeningRevenue(year: number): { month: number; revenue: number; storeName: string }[] {
   const plans = getStoreOpeningPlans(year)
   const growthCurve = [0.30, 0.50, 0.70, 0.85, 0.95, 1.0]
   const result: { month: number; revenue: number; storeName: string }[] = []
 
+  // 前年の月別売上から季節変動指数を算出
+  const prevYearMonthly = getMonthlyTotalSales(year - 1, 1, year - 1, 12)
+  const seasonalIndex: Record<number, number> = {}
+  if (prevYearMonthly.length >= 6) {
+    const avgMonthlySales = prevYearMonthly.reduce((s, m) => s + m.sales, 0) / prevYearMonthly.length
+    for (const m of prevYearMonthly) {
+      const [, mStr] = m.month.split('-')
+      const mo = parseInt(mStr)
+      seasonalIndex[mo] = avgMonthlySales > 0 ? m.sales / avgMonthlySales : 1.0
+    }
+  }
+
   for (const plan of plans) {
     for (let mo = plan.opening_month; mo <= 12; mo++) {
       const monthsOpen = mo - plan.opening_month // 0-indexed
-      const growthRate = monthsOpen < growthCurve.length
-        ? growthCurve[monthsOpen]
-        : 1.0
+      let growthRate: number
+      if (monthsOpen < growthCurve.length) {
+        growthRate = growthCurve[monthsOpen]
+      } else {
+        // 6ヶ月目以降: 100%ベースに季節変動率を掛ける
+        growthRate = seasonalIndex[mo] ?? 1.0
+      }
       result.push({
         month: mo,
         revenue: Math.round(plan.max_monthly_revenue * growthRate),

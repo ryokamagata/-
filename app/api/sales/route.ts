@@ -87,7 +87,7 @@ export async function GET() {
       .map(([store, sales]) => ({ store, sales }))
       .sort((a, b) => b.sales - a.sales)
     staffBreakdown = Object.entries(staffMap)
-      .filter(([staff]) => staff !== '不明')
+      .filter(([staff]) => staff !== '不明' && staff !== 'フリー')
       .map(([staff, sales]) => ({ staff, sales }))
       .sort((a, b) => b.sales - a.sales)
   }
@@ -212,11 +212,11 @@ export async function GET() {
     // ブレンド比率（月が進むほどペースを信頼）
     let paceWeight: number
     if (monthProgressRate < 0.3) {
-      paceWeight = 0.2
+      paceWeight = 0.3
     } else if (monthProgressRate > 0.7) {
       paceWeight = 0.8
     } else {
-      paceWeight = 0.2 + (monthProgressRate - 0.3) / 0.4 * 0.6
+      paceWeight = 0.3 + (monthProgressRate - 0.3) / 0.4 * 0.5
     }
 
     // 標準予測（日割りペース × YoY のブレンド）
@@ -230,10 +230,10 @@ export async function GET() {
     // 堅実予測 = 標準の95%（安定した予測幅）
     const conservative = Math.round(standard * 0.95)
 
-    // 高め見込み = max(ペース着地, YoY着地) の103%、または標準の105%
+    // 高め見込み = max(ペース着地, YoY着地) の105%、または標準の105%
     let optimistic: number
     if (yoyEstimate !== null && yoyEstimate > 0) {
-      optimistic = Math.round(Math.max(simplePaceEstimate, yoyEstimate) * 1.03)
+      optimistic = Math.round(Math.max(simplePaceEstimate, yoyEstimate) * 1.05)
     } else {
       optimistic = Math.round(standard * 1.05)
     }

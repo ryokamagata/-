@@ -410,7 +410,7 @@ function ForecastDetailSection({ data }: { data: DashboardData }) {
             </div>
           </div>
           <p className="text-[10px] text-gray-600 mt-1">
-            ※ 着地予測 = 日割りペース×{Math.round(fd.rationale.paceWeight * 100)}% + YoY予測×{Math.round((1 - fd.rationale.paceWeight) * 100)}% / 高め見込み = max(ペース,YoY)×103% / 堅実 = 標準×95%
+            ※ 着地予測 = 日割りペース×{Math.round(fd.rationale.paceWeight * 100)}% + YoY予測×{Math.round((1 - fd.rationale.paceWeight) * 100)}% / 高め見込み = max(ペース,YoY)×105% / 堅実 = 標準×95%
           </p>
         </div>
       )}

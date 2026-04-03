@@ -67,6 +67,7 @@ export function mergeStaffSales(
   }
 
   return Array.from(map.values())
+    .filter(({ displayName }) => displayName !== 'フリー' && displayName !== '不明')
     .map(({ displayName, sales }) => ({ staff: displayName, sales }))
     .sort((a, b) => b.sales - a.sales)
 }

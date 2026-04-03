@@ -74,6 +74,7 @@ export async function GET() {
 
   for (const row of staffMonthly) {
     const normalized = normalizeStaffName(row.staff)
+    if (normalized === 'フリー' || normalized === '不明') continue
     const monthKey = `${row.year}-${String(row.month).padStart(2, '0')}`
 
     let entry = staffMerged.get(normalized)
@@ -232,16 +233,16 @@ export async function GET() {
 
           // ブレンド: 月が進むほどペースを信頼
           const monthProgress = daysElapsed / daysInCurrentMonth
-          // 0-30%: YoY 80%, pace 20%
+          // 0-30%: YoY 70%, pace 30%
           // 30-70%: 線形補間
           // 70-100%: YoY 20%, pace 80%
           let paceWeight: number
           if (monthProgress < 0.3) {
-            paceWeight = 0.2
+            paceWeight = 0.3
           } else if (monthProgress > 0.7) {
             paceWeight = 0.8
           } else {
-            paceWeight = 0.2 + (monthProgress - 0.3) / 0.4 * 0.6
+            paceWeight = 0.3 + (monthProgress - 0.3) / 0.4 * 0.5
           }
 
           currentMonthEstimate = Math.round(paceEstimate * paceWeight + yoyEstimate * (1 - paceWeight))
