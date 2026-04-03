@@ -317,7 +317,7 @@ const KAMAGATA: ExecutiveConfig = {
 
 // ─── エクスポート ──────────────────────────────────────────────
 
-export const EXECUTIVES: ExecutiveConfig[] = [KAMAGATA, NAKAJIMA, MATSUDATE, CREATIVE]
+export const EXECUTIVES: ExecutiveConfig[] = [NAKAJIMA, MATSUDATE, CREATIVE]
 
 export const MATSUDATE_MONTHLY_TARGETS = MATSUDATE_MONTHLY
 export const CREATIVE_MONTHLY_TARGETS = CREATIVE_MONTHLY
