@@ -329,9 +329,9 @@ function DowPanel({
   const weekTotal = (days: WeekDay[]) => days.reduce((s, d) => s + d.sales, 0)
   const weekCustomers = (days: WeekDay[]) => days.reduce((s, d) => s + d.customers, 0)
   const weekTotalWithForecast = (days: WeekDay[]) =>
-    days.reduce((s, d) => s + (d.isFuture ? d.forecast : d.sales), 0)
+    days.reduce((s, d) => s + ((d.isFuture || (d.isToday && d.sales === 0)) ? d.forecast : d.sales), 0)
   const weekCustomersWithForecast = (days: WeekDay[]) =>
-    days.reduce((s, d) => s + (d.isFuture ? d.forecastCustomers : d.customers), 0)
+    days.reduce((s, d) => s + ((d.isFuture || (d.isToday && d.sales === 0)) ? d.forecastCustomers : d.customers), 0)
 
   const thisActualTotal = weekTotal(thisWeekDays)
   const thisForecastTotal = weekTotalWithForecast(thisWeekDays)
@@ -346,7 +346,7 @@ function DowPanel({
   }
 
   const maxSalesInWeeks = Math.max(
-    ...thisWeekDays.map(d => d.isFuture ? d.forecast : d.sales),
+    ...thisWeekDays.map(d => (d.isFuture || (d.isToday && d.sales === 0)) ? d.forecast : d.sales),
     ...lastWeekDays.map(d => d.sales),
     ...prevMonthDays.map(d => d.sales),
     1
@@ -431,7 +431,8 @@ function DowPanel({
           {thisWeekDays.map((d, i) => {
             const lastD = lastWeekDays[i]
             const prevD = prevMonthDays[i]
-            const displaySales = d.isFuture ? d.forecast : d.sales
+            const showForecast = d.isFuture || (d.isToday && d.sales === 0)
+            const displaySales = showForecast ? d.forecast : d.sales
             const pctThis = maxSalesInWeeks > 0 ? (displaySales / maxSalesInWeeks) * 100 : 0
             const pctLast = maxSalesInWeeks > 0 ? ((lastD?.sales ?? 0) / maxSalesInWeeks) * 100 : 0
             const pctPrev = maxSalesInWeeks > 0 ? ((prevD?.sales ?? 0) / maxSalesInWeeks) * 100 : 0
@@ -440,17 +441,17 @@ function DowPanel({
                 <div className="w-full h-20 flex items-end justify-center gap-[2px]">
                   <div className="w-2 bg-gray-600/60 rounded-t" style={{ height: `${pctPrev}%` }} title={`前月同週 ${formatMan(prevD?.sales ?? 0)}`} />
                   <div className="w-2 bg-gray-400/60 rounded-t" style={{ height: `${pctLast}%` }} title={`先週 ${formatMan(lastD?.sales ?? 0)}`} />
-                  {d.isFuture ? (
+                  {showForecast ? (
                     <div className="w-2 rounded-t bg-yellow-500/50 border border-dashed border-yellow-400/60" style={{ height: `${pctThis}%` }} title={`予測 ${formatMan(d.forecast)}`} />
                   ) : (
                     <div className={`w-2 rounded-t ${DOW_BG[d.dow]}`} style={{ height: `${pctThis}%` }} title={`今週 ${formatMan(d.sales)}`} />
                   )}
                 </div>
-                <span className={`text-xs font-bold mt-1 ${d.isFuture ? 'text-yellow-400/60' : DOW_COLORS[d.dow]}`}>{d.dowLabel}</span>
+                <span className={`text-xs font-bold mt-1 ${showForecast ? 'text-yellow-400/60' : DOW_COLORS[d.dow]}`}>{d.dowLabel}</span>
                 {d.holiday && (
                   <span className="text-[8px] text-red-400 truncate max-w-[48px]">{d.holiday}</span>
                 )}
-                {d.isFuture ? (
+                {showForecast ? (
                   <span className="text-[10px] text-yellow-400/60">{d.forecast > 0 ? formatMan(d.forecast) : '—'}</span>
                 ) : (
                   <span className="text-[10px] text-gray-400">{d.sales > 0 ? formatMan(d.sales) : '—'}</span>
@@ -488,25 +489,26 @@ function DowPanel({
               {thisWeekDays.map((d, i) => {
                 const lastD = lastWeekDays[i]
                 const prevD = prevMonthDays[i]
-                const displaySales = d.isFuture ? d.forecast : d.sales
-                const displayCustomers = d.isFuture ? d.forecastCustomers : d.customers
+                const showForecast = d.isFuture || (d.isToday && d.sales === 0)
+                const displaySales = showForecast ? d.forecast : d.sales
+                const displayCustomers = showForecast ? d.forecastCustomers : d.customers
                 const salesDiff = displaySales - (lastD?.sales ?? 0)
                 const salesDiffPct = diffPct(displaySales, lastD?.sales ?? 0)
                 return (
-                  <tr key={d.date} className={`border-b border-gray-700/50 hover:bg-gray-700/30 ${d.isFuture ? 'opacity-75' : ''} ${d.isToday ? 'bg-cyan-900/10' : ''}`}>
+                  <tr key={d.date} className={`border-b border-gray-700/50 hover:bg-gray-700/30 ${showForecast ? 'opacity-75' : ''} ${d.isToday ? 'bg-cyan-900/10' : ''}`}>
                     <td className="py-1.5 px-1">
                       <div className="flex items-center gap-1">
-                        <span className={`font-bold ${d.isFuture ? 'text-yellow-400/60' : DOW_COLORS[d.dow]}`}>{d.dowLabel}</span>
+                        <span className={`font-bold ${showForecast ? 'text-yellow-400/60' : DOW_COLORS[d.dow]}`}>{d.dowLabel}</span>
                         <span className="text-[10px] text-gray-600">{d.date.slice(5)}</span>
                         {d.isToday && <span className="text-[9px] text-cyan-400 bg-cyan-900/30 px-1 rounded">今日</span>}
-                        {d.isFuture && <span className="text-[9px] text-yellow-400 bg-yellow-900/30 px-1 rounded">予測</span>}
+                        {showForecast && <span className="text-[9px] text-yellow-400 bg-yellow-900/30 px-1 rounded">予測</span>}
                         {d.holiday && (
                           <span className="text-[9px] text-red-400 bg-red-900/30 px-1 rounded">{d.holiday}</span>
                         )}
                       </div>
                     </td>
                     <td className="py-1.5 px-1 text-right font-bold">
-                      {d.isFuture ? (
+                      {showForecast ? (
                         <span className="text-yellow-400/80">{d.forecast > 0 ? formatMan(d.forecast) : '—'}</span>
                       ) : d.sales > 0 ? (
                         <span className="text-white">{formatMan(d.sales)}</span>
