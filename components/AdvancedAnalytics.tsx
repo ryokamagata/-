@@ -191,12 +191,13 @@ function RepeatPanel({ data }: { data: AnalyticsData }) {
   const monthly = data.customerRepeat.monthly
   const latest = monthly[monthly.length - 1]
   const storeRanking = data.customerRepeat.storeReturnRanking
+  const latestReturn = data.customerRepeat.returnRateTrend
+  const latestReturnRate = latestReturn.length > 0 ? latestReturn[latestReturn.length - 1].avgRate : null
 
   const stripMonth = (m: string) => {
-    const match = m.match(/(\d{1,2})月?$/)
-    if (match) return `${match[1]}月`
     const parts = m.split('-')
-    return `${parseInt(parts[parts.length - 1], 10)}月`
+    if (parts.length === 2) return `${parseInt(parts[1])}月`
+    return m
   }
 
   const maxRate = Math.max(...storeRanking.map(s => s.rate), 1)
@@ -215,8 +216,12 @@ function RepeatPanel({ data }: { data: AnalyticsData }) {
         </div>
         <div className="bg-gray-800 rounded-xl p-4 text-center">
           <div className="text-gray-400 text-xs mb-1">新規3ヶ月リピート率</div>
-          <div className="text-red-400 text-xl font-bold">{latest?.newRate?.toFixed(1) ?? '-'}%</div>
+          <div className="text-red-400 text-xl font-bold">{latestReturnRate?.toFixed(1) ?? '-'}%</div>
         </div>
+      </div>
+
+      <div className="bg-gray-800 rounded-xl p-3">
+        <p className="text-xs text-gray-400">指名率 = 指名客数 ÷ 総来店数。フリー率 = フリー客数 ÷ 総来店数。3ヶ月リピート率 = 新規来店後3ヶ月以内に再来店した割合（BM自動集計）。</p>
       </div>
 
       {/* Monthly trend table */}
@@ -281,13 +286,16 @@ function RepeatPanel({ data }: { data: AnalyticsData }) {
 }
 
 function StaffPanel({ data }: { data: AnalyticsData }) {
-  const growth = [...data.staffProductivity.growth].sort((a, b) => b.growthRate - a.growthRate)
+  const growth = [...data.staffProductivity.growth].filter(g => g.growthRate !== null && g.growthRate !== undefined).sort((a, b) => (b.growthRate ?? 0) - (a.growthRate ?? 0))
   const currentMonth = [...data.staffProductivity.currentMonth].sort((a, b) => b.sales - a.sales)
   const top20 = currentMonth.slice(0, 20)
   const maxSales = Math.max(...top20.map(s => s.sales), 1)
 
   return (
     <div className="space-y-4">
+      <div className="bg-gray-800 rounded-xl p-3">
+        <p className="text-xs text-gray-400">直近3ヶ月の売上合計と前3ヶ月を比較し、成長率を算出。当月売上はスクレイピングデータから集計。</p>
+      </div>
       {/* Growth ranking */}
       <div className="bg-gray-800 rounded-xl p-4 overflow-x-auto">
         <h3 className="text-gray-300 text-sm font-semibold mb-2">成長率ランキング</h3>
@@ -353,6 +361,9 @@ function BenchmarkPanel({ data }: { data: AnalyticsData }) {
 
   return (
     <div className="space-y-4">
+      <div className="bg-gray-800 rounded-xl p-3">
+        <p className="text-xs text-gray-400">席効率 = 店舗売上 ÷ 席数。ポテンシャル = 席数 × 120万円/席。達成率 = 売上 ÷ ポテンシャル × 100。Gap = ポテンシャル − 売上。稼働率はBM予約データから算出。</p>
+      </div>
       {/* ── ベンチマーク表 ── */}
       <div className="bg-gray-800 rounded-xl p-3 overflow-x-auto">
         <h3 className="text-sm font-bold text-white mb-2">店舗ベンチマーク</h3>
@@ -425,7 +436,7 @@ function BenchmarkPanel({ data }: { data: AnalyticsData }) {
                     style={{ width: `${pct}%` }}
                   />
                 </div>
-                <span className="w-14 text-gray-300 text-right">{formatMan(r.revenuePerSeat)}</span>
+                <span className="w-20 text-gray-300 text-right">{formatMan(r.revenuePerSeat)} <span className="text-gray-500">({r.achievementRate.toFixed(0)}%)</span></span>
               </div>
             )
           })}
@@ -440,6 +451,9 @@ function SeasonalPanel({ data }: { data: AnalyticsData }) {
 
   return (
     <div className="space-y-4">
+      <div className="bg-gray-800 rounded-xl p-3">
+        <p className="text-xs text-gray-400">季節指数 = 各月の平均売上 ÷ 全月平均売上 × 100。100%が平均水準。前年比成長率は前年同月との比較。祝日インパクトは祝日の売上と同曜日の通常日売上との差分。</p>
+      </div>
       {/* ── 季節指数 ── */}
       <div className="bg-gray-800 rounded-xl p-3">
         <h3 className="text-sm font-bold text-white mb-2">季節指数</h3>
@@ -464,7 +478,7 @@ function SeasonalPanel({ data }: { data: AnalyticsData }) {
               >
                 <div className="text-xs text-gray-400">{m.label}</div>
                 <div className={`text-lg font-bold ${textColor}`}>
-                  {m.index.toFixed(2)}
+                  {(m.index * 100).toFixed(0)}%
                 </div>
                 <div className="text-[10px] text-gray-400">{formatMan(m.avgSales)}</div>
               </div>
@@ -527,6 +541,7 @@ function SeasonalPanel({ data }: { data: AnalyticsData }) {
             ))}
           </tbody>
         </table>
+        <p className="text-[10px] text-gray-500 mt-2">※ 過去6ヶ月の祝日データから集計。今後の祝日は曜日別パターンの予測値を参照。</p>
       </div>
     </div>
   )
@@ -551,6 +566,9 @@ function AbcPanel({ data }: { data: AnalyticsData }) {
 
   return (
     <div className="space-y-4">
+      <div className="bg-gray-800 rounded-xl p-3">
+        <p className="text-xs text-gray-400">ABC分析（パレート分析）: 売上上位から累積し、80%までをA評価、95%までをB評価、残りをC評価に分類。少数の重要スタッフ・店舗を特定する分析手法。</p>
+      </div>
       {/* Summary card */}
       <div className="bg-gray-800 rounded-xl p-4">
         <p className="text-sm text-gray-200">
@@ -562,7 +580,7 @@ function AbcPanel({ data }: { data: AnalyticsData }) {
 
       {/* Staff ABC table */}
       <div className="bg-gray-800 rounded-xl p-4 overflow-x-auto">
-        <h3 className="text-sm font-bold text-gray-200 mb-2">スタッフ ABC分析</h3>
+        <h3 className="text-sm font-bold text-gray-200 mb-2">スタッフ ABC分析（今月）</h3>
         <table className="w-full text-xs text-gray-300">
           <thead>
             <tr className="border-b border-gray-700 text-gray-400">
@@ -623,7 +641,7 @@ function AbcPanel({ data }: { data: AnalyticsData }) {
 
       {/* Store ABC table */}
       <div className="bg-gray-800 rounded-xl p-4 overflow-x-auto">
-        <h3 className="text-sm font-bold text-gray-200 mb-2">店舗 ABC分析</h3>
+        <h3 className="text-sm font-bold text-gray-200 mb-2">店舗 ABC分析（今月）</h3>
         <table className="w-full text-xs text-gray-300">
           <thead>
             <tr className="border-b border-gray-700 text-gray-400">
@@ -695,10 +713,13 @@ function ForecastPanel({ data }: { data: AnalyticsData }) {
 
   return (
     <div className="space-y-4">
+      <div className="bg-gray-800 rounded-xl p-3">
+        <p className="text-xs text-gray-400">過去の完了月について、Day10・15・20時点でのDOW（曜日別平均）予測と実績を比較。精度が高いほど予測モデルの信頼性が高い。</p>
+      </div>
       {/* Monthly forecast accuracy table */}
       {months.length > 0 && (
         <div className="bg-gray-800 rounded-xl p-4 overflow-x-auto">
-          <h3 className="text-sm font-bold text-gray-200 mb-2">月別予測精度</h3>
+          <h3 className="text-sm font-bold text-gray-200 mb-2">月別予測精度（2026年3月〜）</h3>
           <table className="w-full text-xs text-gray-300">
             <thead>
               <tr className="border-b border-gray-700 text-gray-400">
@@ -736,29 +757,6 @@ function ForecastPanel({ data }: { data: AnalyticsData }) {
         </div>
       )}
 
-      {/* DOW accuracy section */}
-      {dowAccuracy.length > 0 && (
-        <div className="bg-gray-800 rounded-xl p-4">
-          <h3 className="text-sm font-bold text-gray-200 mb-2">曜日別予測誤差（変動係数）</h3>
-          <p className="text-xs text-gray-500 mb-3">値が低いほど予測精度が高い</p>
-          <div className="space-y-2">
-            {dowAccuracy.map((d) => (
-              <div key={d.dow} className="flex items-center gap-2 text-xs">
-                <span className="w-8 text-gray-300 font-medium">{d.label}</span>
-                <div className="flex-1 bg-gray-700 rounded-full h-4 overflow-hidden">
-                  <div
-                    className={`h-full rounded-full ${dowBarColor(d.avgError)}`}
-                    style={{ width: `${maxDowError > 0 ? (d.avgError / maxDowError) * 100 : 0}%` }}
-                  />
-                </div>
-                <span className={`w-14 text-right font-medium ${dowTextColor(d.avgError)}`}>
-                  {d.avgError.toFixed(1)}%
-                </span>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
     </div>
   )
 }
