@@ -387,9 +387,29 @@ function ForecastDetailSection({ data }: { data: DashboardData }) {
           <p className="text-xs font-medium text-gray-400 mb-2">予測の根拠</p>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-1 text-[11px]">
             <div className="flex justify-between text-gray-400 gap-2">
-              <span className="shrink-0">日割りペース</span>
+              <span className="shrink-0">平日 日割り</span>
               <span className="text-gray-300 text-right truncate">
-                {formatYen(fd.rationale.dailyAvg)}/日 → {formatYen(fd.rationale.paceEstimate)}
+                {formatYen(fd.rationale.weekdayAvg)}/日 × {fd.rationale.weekdayCount}日
+                <span className="text-gray-500"> (実績{fd.rationale.weekdayActualDays}日)</span>
+              </span>
+            </div>
+            <div className="flex justify-between text-gray-400 gap-2">
+              <span className="shrink-0">土日祝 日割り</span>
+              <span className="text-gray-300 text-right truncate">
+                {formatYen(fd.rationale.weekendAvg)}/日 × {fd.rationale.weekendCount}日
+                <span className="text-gray-500"> (実績{fd.rationale.weekendActualDays}日)</span>
+              </span>
+            </div>
+            <div className="flex justify-between text-gray-400 gap-2">
+              <span className="shrink-0">全体 日割り</span>
+              <span className="text-gray-300 text-right truncate">
+                {formatYen(fd.rationale.dailyAvg)}/日 (参考)
+              </span>
+            </div>
+            <div className="flex justify-between text-gray-400 gap-2">
+              <span className="shrink-0">ペース着地</span>
+              <span className="text-gray-300 text-right truncate">
+                {formatYen(fd.rationale.paceEstimate)}
               </span>
             </div>
             {fd.rationale.prevYearSales !== null && (
@@ -426,7 +446,7 @@ function ForecastDetailSection({ data }: { data: DashboardData }) {
             </div>
           </div>
           <p className="text-[10px] text-gray-600 mt-1">
-            ※ 着地予測 = 日割りペース×{Math.round(fd.rationale.paceWeight * 100)}% + YoY予測×{Math.round((1 - fd.rationale.paceWeight) * 100)}% / 高め見込み = max(ペース,YoY)×103% / 堅実 = 標準×95%
+            ※ ペース着地 = 平日平均×平日残日数 + 土日祝平均×土日祝残日数 + 実績 / 着地予測 = ペース×{Math.round(fd.rationale.paceWeight * 100)}% + YoY×{Math.round((1 - fd.rationale.paceWeight) * 100)}% / 高め = max(ペース,YoY)×103% / 堅実 = 標準×95%
           </p>
         </div>
       )}
