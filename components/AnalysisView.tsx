@@ -124,8 +124,8 @@ export default function AnalysisView() {
 
   useEffect(() => {
     Promise.all([
-      fetch('/api/analysis').then(r => r.json()),
-      fetch('/api/analytics').then(r => r.json()),
+      fetch('/api/analysis', { cache: 'no-store' }).then(r => r.json()),
+      fetch('/api/analytics', { cache: 'no-store' }).then(r => r.json()),
     ])
       .then(([a, b]) => { setData(a); setAnalyticsData(b); setLoading(false) })
       .catch(() => setLoading(false))
