@@ -4,11 +4,16 @@ import {
   getMonthlyTotalSales,
   getMonthlyStoreSales,
   getDailySales,
-  getDayOfWeekSales,
+  getTarget,
+  getSeasonalIndex,
+  getStoreOpeningRevenue,
+  getScrapedDailySales,
 } from '@/lib/db'
 import { STORES, MAX_REVENUE_PER_SEAT, isClosedStore } from '@/lib/stores'
 import { getHolidayMap } from '@/lib/holidays'
 import { CUTOFF_HOUR, CUTOFF_MINUTE } from '@/lib/autoScrape'
+import { computeForecast } from '@/lib/forecastEngine'
+import type { DailySales } from '@/lib/types'
 
 export const dynamic = 'force-dynamic'
 export const revalidate = 0
@@ -305,121 +310,117 @@ export async function GET() {
     ? Math.round(staffACount / staffABC.length * 1000) / 10
     : 0
 
-  // ── 6. 予測精度分析 ──────────────────────────────────────
-  // 過去6ヶ月の各月について、DAY=10, 15, 20 時点のDOW予測 vs 実績を検証
-  const forecastAccuracyMonths: {
-    month: string
-    actual: number
-    forecasts: { day: number; forecast: number; accuracy: number }[]
-  }[] = []
+  // ── 6. 月別予測 vs 目標（今年 3月〜12月） ─────────────────
+  // - 完了月 (mo < 当月): 実績
+  // - 当月 (mo === 当月): 進行中の着地予測（forecastEngine 平日/土日祝ペース）
+  // - 未来月 (mo > 当月): 当月ペースを季節変動率で補正 + 出店計画上乗せ
+  // - 目標: monthly_targets から取得
 
-  // i=0: 当月(進行中), i=1..6: 過去月
-  for (let i = 0; i <= 6; i++) {
-    const tgtDate = new Date(year, month - 1 - i, 1)
-    const tgtYear = tgtDate.getFullYear()
-    const tgtMonth = tgtDate.getMonth() + 1
-    const daysInMonth = new Date(tgtYear, tgtMonth, 0).getDate()
-    const tgtPrefix = `${tgtYear}-${String(tgtMonth).padStart(2, '0')}`
-    const isCurrentMonth = i === 0
+  const daysInCurrentMonth = new Date(year, month, 0).getDate()
+  const cutoffDate = `${year}-${String(month).padStart(2, '0')}-${String(Math.max(today, 0)).padStart(2, '0')}`
+  const rawDaily = getScrapedDailySales(year, month)
+  const dailySalesForForecast: DailySales[] = rawDaily
+    .filter(r => today > 0 && r.date <= cutoffDate)
+    .map(r => ({
+      date: r.date,
+      dayOfWeek: new Date(r.date + 'T00:00:00').getDay(),
+      totalAmount: r.sales,
+      customers: r.customers,
+      stores: {},
+      staff: {},
+    }))
+  const currentMonthFc = computeForecast(dailySalesForForecast, year, month, today)
+  const currentMonthEstimate = currentMonthFc.forecastTotal
 
-    const monthDailySales = db.prepare(`
-      SELECT date, SUM(sales) as sales
-      FROM store_daily_sales
-      WHERE date LIKE ?
-      GROUP BY date ORDER BY date ASC
-    `).all(`${tgtPrefix}-%`) as { date: string; sales: number }[]
+  // 季節変動指数と当月比率（baseline 算出）
+  const projSeasonalIndex = getSeasonalIndex(year)
+  const currentSeasonalRatio = projSeasonalIndex[month] ?? 1.0
+  const baselineMonthly = currentSeasonalRatio > 0 && currentMonthEstimate > 0
+    ? currentMonthEstimate / currentSeasonalRatio
+    : null
 
-    if (monthDailySales.length === 0) continue
-
-    const rawActualTotal = monthDailySales.reduce((s, d) => s + d.sales, 0)
-
-    // 当月は「現時点の着地予測(ペース)」を実績扱いにする。完了月は実績そのもの
-    let actualTotal: number
-    if (isCurrentMonth && today > 0 && today < daysInMonth) {
-      const daysWithData = monthDailySales.filter(d => d.sales > 0).length || 1
-      actualTotal = Math.round((rawActualTotal / daysWithData) * daysInMonth)
-    } else {
-      actualTotal = rawActualTotal
-    }
-
-    // 曜日別平均を計算（その月のデータから）
-    const forecasts: { day: number; forecast: number; accuracy: number }[] = []
-    for (const checkpoint of [10, 15, 20]) {
-      if (checkpoint > daysInMonth) continue
-      // 当月は未到達のチェックポイントはスキップ
-      if (isCurrentMonth && checkpoint > today) continue
-
-      const salesUpToDay = monthDailySales.filter(d => {
-        const dayNum = parseInt(d.date.split('-')[2])
-        return dayNum <= checkpoint
-      })
-      const actualSoFar = salesUpToDay.reduce((s, d) => s + d.sales, 0)
-
-      // DOW average from data up to checkpoint
-      const dowBuckets: Record<number, number[]> = { 0: [], 1: [], 2: [], 3: [], 4: [], 5: [], 6: [] }
-      for (const d of salesUpToDay) {
-        if (d.sales > 0) {
-          const dow = new Date(d.date + 'T00:00:00').getDay()
-          dowBuckets[dow].push(d.sales)
-        }
-      }
-      const dowAvg: Record<number, number> = {}
-      for (let dow = 0; dow <= 6; dow++) {
-        const vals = dowBuckets[dow]
-        dowAvg[dow] = vals.length > 0 ? Math.round(vals.reduce((s, v) => s + v, 0) / vals.length) : 0
-      }
-
-      // Project remaining days
-      let projected = 0
-      for (let d = checkpoint + 1; d <= daysInMonth; d++) {
-        const futureDate = new Date(tgtYear, tgtMonth - 1, d)
-        projected += dowAvg[futureDate.getDay()] ?? 0
-      }
-
-      const forecastTotal = actualSoFar + projected
-      const accuracy = actualTotal > 0 ? Math.round((1 - Math.abs(forecastTotal - actualTotal) / actualTotal) * 1000) / 10 : 0
-
-      forecasts.push({ day: checkpoint, forecast: forecastTotal, accuracy })
-    }
-
-    if (forecasts.length === 0 && !isCurrentMonth) continue
-
-    forecastAccuracyMonths.push({
-      month: tgtPrefix,
-      actual: actualTotal,
-      forecasts,
-    })
+  // 前年同月データ（YoYフォールバック用）
+  const prevYearMonthly = getMonthlyTotalSales(year - 1, 1, year - 1, 12)
+  const prevYearMap = new Map<number, number>()
+  for (const m of prevYearMonthly) {
+    const mo = parseInt(m.month.split('-')[1])
+    prevYearMap.set(mo, m.sales)
   }
 
-  // 時系列順に並べ替え（古い順）
-  forecastAccuracyMonths.sort((a, b) => a.month.localeCompare(b.month))
+  // 当年の完了月実績
+  const currentYearActualMap = new Map<number, number>()
+  for (const m of totalMonthly24) {
+    const [yStr, mStr] = m.month.split('-')
+    if (parseInt(yStr) === year) {
+      currentYearActualMap.set(parseInt(mStr), m.sales)
+    }
+  }
 
-  // 曜日別予測精度
-  const dowAccuracy: { dow: number; label: string; avgError: number }[] = []
-  const DOW_LABELS = ['日', '月', '火', '水', '木', '金', '土']
+  // YoY平均成長率（当月を除く完了月）
+  const yoyRates: number[] = []
+  for (const [mo, curr] of Array.from(currentYearActualMap.entries())) {
+    if (mo >= month) continue
+    const prev = prevYearMap.get(mo)
+    if (prev && prev > 0) yoyRates.push((curr - prev) / prev)
+  }
+  const avgGrowthRate = yoyRates.length > 0
+    ? yoyRates.reduce((a, b) => a + b, 0) / yoyRates.length
+    : null
 
-  // 直近3ヶ月の曜日別実績 vs DOW平均予測
-  const dowFrom = month <= 3 ? (year - 1) : year
-  const dowFromMo = month <= 3 ? month + 9 : month - 3
-  const dowStats = getDayOfWeekSales(dowFrom, dowFromMo, year, month)
+  // 出店計画の月別上乗せ
+  const openingRevenue = getStoreOpeningRevenue(year)
+  const newStoreByMonth: Record<number, number> = {}
+  for (const r of openingRevenue) {
+    newStoreByMonth[r.month] = (newStoreByMonth[r.month] ?? 0) + r.revenue
+  }
 
-  for (const d of dowStats) {
-    // 曜日ごとの変動係数（CV）で精度を推定
-    const dailyData = dailyForHolidays.filter(dd => {
-      const dow = new Date(dd.date + 'T00:00:00').getDay()
-      return dow === d.dow && dd.sales > 0
-    })
-    const avg = dailyData.length > 0 ? dailyData.reduce((s, dd) => s + dd.sales, 0) / dailyData.length : 0
-    const variance = dailyData.length > 1
-      ? dailyData.reduce((s, dd) => s + Math.pow(dd.sales - avg, 2), 0) / (dailyData.length - 1)
-      : 0
-    const cv = avg > 0 ? Math.round(Math.sqrt(variance) / avg * 1000) / 10 : 0
+  const monthlyProjectionItems: {
+    month: number
+    status: 'actual' | 'inProgress' | 'future'
+    actual: number | null
+    forecast: number | null
+    target: number | null
+    diff: number | null
+    diffRate: number | null
+  }[] = []
 
-    dowAccuracy.push({
-      dow: d.dow,
-      label: DOW_LABELS[d.dow],
-      avgError: cv,
-    })
+  for (let mo = 3; mo <= 12; mo++) {
+    const target = getTarget(year, mo)
+    let actual: number | null = null
+    let forecast: number | null = null
+    let status: 'actual' | 'inProgress' | 'future'
+
+    if (mo < month) {
+      status = 'actual'
+      actual = currentYearActualMap.get(mo) ?? null
+    } else if (mo === month) {
+      status = 'inProgress'
+      forecast = currentMonthEstimate > 0 ? currentMonthEstimate : null
+    } else {
+      status = 'future'
+      const moRatio = projSeasonalIndex[mo] ?? 1.0
+      let proj: number | null = null
+      if (baselineMonthly !== null) {
+        proj = Math.round(baselineMonthly * moRatio)
+      } else {
+        const prev = prevYearMap.get(mo)
+        if (prev && prev > 0) {
+          proj = avgGrowthRate !== null
+            ? Math.round(prev * (1 + avgGrowthRate))
+            : prev
+        }
+      }
+      if (proj !== null && newStoreByMonth[mo]) proj += newStoreByMonth[mo]
+      forecast = proj
+    }
+
+    const reference = actual !== null ? actual : forecast
+    const diff = reference !== null && target !== null ? reference - target : null
+    const diffRate = diff !== null && target !== null && target > 0
+      ? Math.round((diff / target) * 1000) / 10
+      : null
+
+    monthlyProjectionItems.push({ month: mo, status, actual, forecast, target, diff, diffRate })
   }
 
   return NextResponse.json({
@@ -451,10 +452,11 @@ export async function GET() {
       staffACount,
       staffTotal: staffABC.length,
     },
-    // 6. 予測精度分析
-    forecastAccuracy: {
-      months: forecastAccuracyMonths,
-      dowAccuracy,
+    // 6. 月別予測 vs 目標（今年 3月〜12月）
+    monthlyProjection: {
+      year,
+      currentMonth: month,
+      items: monthlyProjectionItems,
     },
   }, {
     headers: {
