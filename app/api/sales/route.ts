@@ -122,8 +122,9 @@ export async function GET() {
   // 合計総客数 = 来店客分析の指名+フリーを全店舗合計
   const totalCustomers = nominated + freeVisit
 
-  // 今月客単価 = 総売上 ÷ 総客数
-  const avgSpend = totalCustomers > 0 ? Math.round(forecast.actualTotal / totalCustomers) : 0
+  // 客単価の分母は日別売上ページの総客数合計を使う（BM全店舗合計の客単価と一致させる）
+  const dailySalesCustomers = dailySales.reduce((s, d) => s + d.customers, 0)
+  const avgSpend = dailySalesCustomers > 0 ? Math.round(forecast.actualTotal / dailySalesCustomers) : 0
 
   // 着地予測（前年同月ブレンド方式 — 月初の精度向上）
   const monthProgressRate = effectiveDays / daysInMonth

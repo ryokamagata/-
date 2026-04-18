@@ -142,7 +142,7 @@ export default function AnalysisView() {
           ['dow', '曜日別パターン'],
           ['target', '目標サジェスト'],
           ['staff', 'スタッフ生産性'],
-          ['forecast', '予測精度'],
+          ['forecast', '月別予測'],
         ] as [SubTab, string][]).map(([key, label]) => (
           <button
             key={key}

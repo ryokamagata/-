@@ -93,8 +93,9 @@ export async function GET(request: NextRequest) {
   const newCustomers = visitorStores.reduce((s, v) => s + v.new_customers, 0)
   const totalCustomers = nominated + freeVisit
 
-  // 客単価
-  const avgUnitPrice = totalCustomers > 0 ? Math.round(totalSales / totalCustomers) : 0
+  // 客単価の分母は日別売上ページの総客数合計を使う（BM全店舗合計の客単価と一致させる）
+  const dailySalesCustomers = dailySales.reduce((s, d) => s + d.customers, 0)
+  const avgUnitPrice = dailySalesCustomers > 0 ? Math.round(totalSales / dailySalesCustomers) : 0
 
   // 指名率・フリー率・新規率
   const designatedRate = totalCustomers > 0

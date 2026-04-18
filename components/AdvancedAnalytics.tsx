@@ -123,27 +123,20 @@ type Abc = {
   staffTotal: number
 }
 
-type ForecastDay = {
-  day: number
-  forecast: number
-  accuracy: number
+type MonthlyProjectionItem = {
+  month: number
+  status: 'actual' | 'inProgress' | 'future'
+  actual: number | null
+  forecast: number | null
+  target: number | null
+  diff: number | null
+  diffRate: number | null
 }
 
-type ForecastMonth = {
-  month: string
-  actual: number
-  forecasts: ForecastDay[]
-}
-
-type DowAccuracy = {
-  dow: number
-  label: string
-  avgError: number
-}
-
-type ForecastAccuracy = {
-  months: ForecastMonth[]
-  dowAccuracy: DowAccuracy[]
+type MonthlyProjection = {
+  year: number
+  currentMonth: number
+  items: MonthlyProjectionItem[]
 }
 
 export type AnalyticsData = {
@@ -152,7 +145,7 @@ export type AnalyticsData = {
   storeBenchmark: StoreBenchmarkRow[]
   seasonal: Seasonal
   abc: Abc
-  forecastAccuracy: ForecastAccuracy
+  monthlyProjection: MonthlyProjection
 }
 
 // ── Helpers ────────────────────────────────────────────────
@@ -182,7 +175,7 @@ const TABS: { key: Tab; label: string }[] = [
   { key: 'benchmark', label: '店舗ベンチマーク' },
   { key: 'seasonal', label: '季節性分析' },
   { key: 'abc', label: 'ABC分析' },
-  { key: 'forecast', label: '予測精度' },
+  { key: 'forecast', label: '月別予測' },
 ]
 
 // ── Placeholder panels ────────────────────────────────────
@@ -694,69 +687,90 @@ function AbcPanel({ data }: { data: AnalyticsData }) {
 }
 
 export function ForecastPanel({ data }: { data: AnalyticsData }) {
-  const fa = data.forecastAccuracy
-  const months = fa?.months ?? []
-  const dowAccuracy = fa?.dowAccuracy ?? []
+  const mp = data.monthlyProjection
+  const items = mp?.items ?? []
 
-  if (months.length === 0 && dowAccuracy.length === 0) {
+  if (items.length === 0) {
     return <div className="text-gray-400 text-sm text-center py-8">データが不足しています</div>
   }
 
-  const accColor = (acc: number) =>
-    acc >= 95 ? 'text-green-400' : acc >= 90 ? 'text-yellow-400' : 'text-red-400'
+  const statusLabel = (s: MonthlyProjectionItem['status']) =>
+    s === 'actual' ? '実績' : s === 'inProgress' ? '着地予測' : '予測'
+  const statusBadge = (s: MonthlyProjectionItem['status']) =>
+    s === 'actual' ? 'bg-green-700/40 text-green-300'
+    : s === 'inProgress' ? 'bg-yellow-700/40 text-yellow-300'
+    : 'bg-blue-700/40 text-blue-300'
 
-  const maxDowError = dowAccuracy.length > 0 ? Math.max(...dowAccuracy.map(d => d.avgError)) : 1
-  const dowBarColor = (err: number) =>
-    err < 15 ? 'bg-green-600' : err <= 25 ? 'bg-yellow-600' : 'bg-red-600'
-  const dowTextColor = (err: number) =>
-    err < 15 ? 'text-green-400' : err <= 25 ? 'text-yellow-400' : 'text-red-400'
+  // 合計行
+  const totalReference = items.reduce((s, it) => s + (it.actual ?? it.forecast ?? 0), 0)
+  const totalTarget = items.reduce((s, it) => s + (it.target ?? 0), 0)
+  const totalDiff = totalTarget > 0 ? totalReference - totalTarget : null
+  const totalDiffRate = totalDiff !== null && totalTarget > 0
+    ? Math.round((totalDiff / totalTarget) * 1000) / 10
+    : null
 
   return (
     <div className="space-y-4">
       <div className="bg-gray-800 rounded-xl p-3">
-        <p className="text-xs text-gray-400">各月について、Day10・15・20時点でのDOW（曜日別平均）予測と実績を比較。精度が高いほど予測モデルの信頼性が高い。当月は現ペースの着地予測を「実績」扱い。</p>
+        <p className="text-xs text-gray-400">
+          {mp.year}年 3月〜12月の月別売上（実績/予測）と目標の比較。完了月は実績、当月は現ペースの着地予測、未来月は当月ペース × 季節変動率 + 出店計画上乗せ。
+        </p>
       </div>
-      {/* Monthly forecast accuracy table */}
-      {months.length > 0 && (
-        <div className="bg-gray-800 rounded-xl p-4 overflow-x-auto">
-          <h3 className="text-sm font-bold text-gray-200 mb-2">月別予測精度（{months[0].month}〜{months[months.length - 1].month}）</h3>
-          <table className="w-full text-xs text-gray-300">
-            <thead>
-              <tr className="border-b border-gray-700 text-gray-400">
-                <th className="py-1 text-left">月</th>
-                <th className="py-1 text-right">実績</th>
-                {months[0]?.forecasts?.map(f => (
-                  <th key={f.day} className="py-1 text-right" colSpan={1}>
-                    {f.day}日時点
-                  </th>
-                ))}
-                {months[0]?.forecasts?.map(f => (
-                  <th key={`acc-${f.day}`} className="py-1 text-right">
-                    精度%
-                  </th>
-                ))}
-              </tr>
-            </thead>
-            <tbody>
-              {months.map((m) => (
-                <tr key={m.month} className="border-b border-gray-700/50">
-                  <td className="py-1">{m.month}</td>
-                  <td className="py-1 text-right">{formatMan(m.actual)}</td>
-                  {m.forecasts.map(f => (
-                    <td key={f.day} className="py-1 text-right">{formatMan(f.forecast)}</td>
-                  ))}
-                  {m.forecasts.map(f => (
-                    <td key={`acc-${f.day}`} className={`py-1 text-right font-medium ${accColor(f.accuracy)}`}>
-                      {f.accuracy.toFixed(1)}%
-                    </td>
-                  ))}
+      <div className="bg-gray-800 rounded-xl p-4 overflow-x-auto">
+        <h3 className="text-sm font-bold text-gray-200 mb-2">月別予測 vs 目標（{mp.year}年 3月〜12月）</h3>
+        <table className="w-full text-xs text-gray-300">
+          <thead>
+            <tr className="border-b border-gray-700 text-gray-400">
+              <th className="py-1 text-left">月</th>
+              <th className="py-1 text-left">区分</th>
+              <th className="py-1 text-right">実績/予測</th>
+              <th className="py-1 text-right">目標</th>
+              <th className="py-1 text-right">差分</th>
+              <th className="py-1 text-right">達成率</th>
+            </tr>
+          </thead>
+          <tbody>
+            {items.map((it) => {
+              const value = it.actual ?? it.forecast
+              const rateColor = it.diffRate === null
+                ? 'text-gray-400'
+                : it.diffRate >= 0 ? 'text-green-400' : 'text-red-400'
+              const achievementRate = it.target && value !== null && it.target > 0
+                ? Math.round((value / it.target) * 1000) / 10
+                : null
+              return (
+                <tr key={it.month} className="border-b border-gray-700/50">
+                  <td className="py-1">{it.month}月</td>
+                  <td className="py-1">
+                    <span className={`inline-block px-2 py-0.5 rounded text-[10px] ${statusBadge(it.status)}`}>
+                      {statusLabel(it.status)}
+                    </span>
+                  </td>
+                  <td className="py-1 text-right">{value !== null ? formatMan(value) : '—'}</td>
+                  <td className="py-1 text-right">{it.target !== null ? formatMan(it.target) : '—'}</td>
+                  <td className={`py-1 text-right ${it.diff !== null && it.diff >= 0 ? 'text-green-400' : it.diff !== null ? 'text-red-400' : 'text-gray-400'}`}>
+                    {it.diff !== null ? `${it.diff >= 0 ? '+' : ''}${formatMan(it.diff)}` : '—'}
+                  </td>
+                  <td className={`py-1 text-right font-medium ${rateColor}`}>
+                    {achievementRate !== null ? `${achievementRate.toFixed(1)}%` : '—'}
+                  </td>
                 </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      )}
-
+              )
+            })}
+            <tr className="border-t border-gray-600 font-bold text-gray-100">
+              <td className="py-1.5" colSpan={2}>合計</td>
+              <td className="py-1.5 text-right">{formatMan(totalReference)}</td>
+              <td className="py-1.5 text-right">{totalTarget > 0 ? formatMan(totalTarget) : '—'}</td>
+              <td className={`py-1.5 text-right ${totalDiff !== null && totalDiff >= 0 ? 'text-green-400' : totalDiff !== null ? 'text-red-400' : 'text-gray-400'}`}>
+                {totalDiff !== null ? `${totalDiff >= 0 ? '+' : ''}${formatMan(totalDiff)}` : '—'}
+              </td>
+              <td className={`py-1.5 text-right ${totalDiffRate === null ? 'text-gray-400' : totalTarget > 0 ? (totalReference / totalTarget >= 1 ? 'text-green-400' : 'text-red-400') : 'text-gray-400'}`}>
+                {totalTarget > 0 ? `${(Math.round((totalReference / totalTarget) * 1000) / 10).toFixed(1)}%` : '—'}
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
     </div>
   )
 }
@@ -800,7 +814,7 @@ export default function AdvancedAnalytics() {
         <AbcPanel data={data} />
       </section>
       <section>
-        <h3 className="text-sm font-bold text-gray-200 mb-3 pb-2 border-b border-gray-700">予測精度</h3>
+        <h3 className="text-sm font-bold text-gray-200 mb-3 pb-2 border-b border-gray-700">月別予測</h3>
         <ForecastPanel data={data} />
       </section>
     </div>
