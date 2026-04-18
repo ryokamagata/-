@@ -97,7 +97,7 @@ export default function HistoryView() {
   const [selectedStore, setSelectedStore] = useState<string>('all')
 
   const refresh = useCallback(() => {
-    fetch('/api/history')
+    fetch('/api/history', { cache: 'no-store' })
       .then(r => r.json())
       .then(d => { setData(d); setLoading(false) })
       .catch(() => setLoading(false))

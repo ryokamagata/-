@@ -12,7 +12,9 @@ import {
 import { computeForecast } from '@/lib/forecastEngine'
 import { isClosedStore } from '@/lib/stores'
 import { normalizeStaffName } from '@/lib/staffNormalize'
+import { CUTOFF_HOUR, CUTOFF_MINUTE } from '@/lib/autoScrape'
 
+export const dynamic = 'force-dynamic'
 export const revalidate = 0
 
 // レート制限用の簡易カウンター（プロセス内メモリ）
@@ -50,7 +52,8 @@ export async function GET(request: NextRequest) {
   const month = jstNow.getMonth() + 1
   const calendarToday = jstNow.getDate()
   const hour = jstNow.getHours()
-  const today = hour >= 22 ? calendarToday : calendarToday - 1
+  const minute = jstNow.getMinutes()
+  const today = (hour > CUTOFF_HOUR || (hour === CUTOFF_HOUR && minute >= CUTOFF_MINUTE)) ? calendarToday : calendarToday - 1
   const daysInMonth = new Date(year, month, 0).getDate()
 
   // 4. DBから最新データを取得（既存のダッシュボードと同じ関数を使用）

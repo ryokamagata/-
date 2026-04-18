@@ -69,13 +69,17 @@ export function computeForecast(
   const effectiveWeekdayAvg = weekdayAverage > 0 ? weekdayAverage : weekendAverage
   const effectiveWeekendAvg = weekendAverage > 0 ? weekendAverage : weekdayAverage
 
-  // Step 4: 残り日数（today+1 〜 月末）を平日/土日祝の平均で予測
+  // Step 4: 実績に無い日を平日/土日祝の平均で予測
+  // today が DB にまだ無くても projection に含まれるので、締日直後のスクレイプで
+  // 実績に繰り上がった瞬間に forecastTotal がズレずに差分だけ反映される。
   const actualTotal = dailySales.reduce((s, d) => s + d.totalAmount, 0)
+  const actualDateSet = new Set(dailySales.map((d) => d.date))
   const dailyProjections: { date: string; projected: number }[] = []
   let projectedTotal = 0
 
-  for (let d = today + 1; d <= daysInMonth; d++) {
+  for (let d = 1; d <= daysInMonth; d++) {
     const dateStr = `${year}-${pad(month)}-${pad(d)}`
+    if (actualDateSet.has(dateStr)) continue
     const dow = new Date(year, month - 1, d).getDay()
     const projected = isWeekendOrHoliday(dateStr, dow)
       ? effectiveWeekendAvg
@@ -88,6 +92,9 @@ export function computeForecast(
   const actualDays = weekdayActualDays + weekendActualDays
   const confidence: ForecastResult['confidence'] =
     actualDays >= 15 ? 'high' : actualDays >= 7 ? 'medium' : 'low'
+
+  // today は呼び出し側の整合性のため残しているが、v2 の計算では未使用
+  void today
 
   return {
     actualTotal,

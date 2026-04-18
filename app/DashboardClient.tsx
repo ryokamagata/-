@@ -28,7 +28,7 @@ export default function DashboardClient() {
 
   const refresh = useCallback(async () => {
     try {
-      const res = await fetch('/api/sales')
+      const res = await fetch('/api/sales', { cache: 'no-store' })
       if (!res.ok) throw new Error('データ取得に失敗しました')
       setData(await res.json())
       setError(null)

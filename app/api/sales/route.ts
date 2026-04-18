@@ -15,8 +15,10 @@ import {
 import { computeForecast } from '@/lib/forecastEngine'
 import { STORES, MAX_REVENUE_PER_SEAT, isClosedStore } from '@/lib/stores'
 import { mergeStaffSales, normalizeStaffName } from '@/lib/staffNormalize'
+import { CUTOFF_HOUR, CUTOFF_MINUTE } from '@/lib/autoScrape'
 import type { DailySales, DashboardData, ForecastDetail, StaffDetailItem } from '@/lib/types'
 
+export const dynamic = 'force-dynamic'
 export const revalidate = 0
 
 export async function GET() {
@@ -25,8 +27,9 @@ export async function GET() {
   const month = now.getMonth() + 1
   const calendarToday = now.getDate()
   const hour = now.getHours()
-  // 22時締め: 22時を過ぎるまでは前日までのデータを使う
-  const today = hour >= 22 ? calendarToday : calendarToday - 1
+  const minute = now.getMinutes()
+  // 20:45締め: 20:45を過ぎるまでは前日までのデータを使う
+  const today = (hour > CUTOFF_HOUR || (hour === CUTOFF_HOUR && minute >= CUTOFF_MINUTE)) ? calendarToday : calendarToday - 1
   const daysInMonth = new Date(year, month, 0).getDate()
 
   const monthlyTarget = getTarget(year, month)
@@ -36,7 +39,7 @@ export async function GET() {
   let storeBreakdown: { store: string; sales: number }[]
   let staffBreakdown: { staff: string; sales: number }[]
 
-  // 22時締め: today日目までのデータのみ使用
+  // 20:45締め: today日目までのデータのみ使用
   const cutoffDate = `${year}-${String(month).padStart(2, '0')}-${String(Math.max(today, 0)).padStart(2, '0')}`
 
   const scrapedDaily = getScrapedDailySales(year, month)
@@ -394,5 +397,9 @@ export async function GET() {
     staffDetail,
   }
 
-  return NextResponse.json(response)
+  return NextResponse.json(response, {
+    headers: {
+      'Cache-Control': 'no-store, no-cache, must-revalidate, max-age=0',
+    },
+  })
 }

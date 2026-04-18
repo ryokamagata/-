@@ -8,7 +8,9 @@ import {
 } from '@/lib/db'
 import { STORES, MAX_REVENUE_PER_SEAT, isClosedStore } from '@/lib/stores'
 import { getHolidayMap } from '@/lib/holidays'
+import { CUTOFF_HOUR, CUTOFF_MINUTE } from '@/lib/autoScrape'
 
+export const dynamic = 'force-dynamic'
 export const revalidate = 0
 
 export async function GET() {
@@ -17,8 +19,9 @@ export async function GET() {
   const month = now.getMonth() + 1
   const calendarToday = now.getDate()
   const hour = now.getHours()
-  // 22時締め: ダッシュボードと統一
-  const today = hour >= 22 ? calendarToday : calendarToday - 1
+  const minute = now.getMinutes()
+  // 20:45締め: ダッシュボードと統一
+  const today = (hour > CUTOFF_HOUR || (hour === CUTOFF_HOUR && minute >= CUTOFF_MINUTE)) ? calendarToday : calendarToday - 1
   const db = getDB()
 
   // ── 1. 顧客リピート分析 ──────────────────────────────────
@@ -452,6 +455,10 @@ export async function GET() {
     forecastAccuracy: {
       months: forecastAccuracyMonths,
       dowAccuracy,
+    },
+  }, {
+    headers: {
+      'Cache-Control': 'no-store, no-cache, must-revalidate, max-age=0',
     },
   })
 }
