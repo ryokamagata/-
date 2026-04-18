@@ -50,7 +50,7 @@ export async function GET(request: NextRequest) {
   const month = jstNow.getMonth() + 1
   const calendarToday = jstNow.getDate()
   const hour = jstNow.getHours()
-  const today = hour >= 22 ? calendarToday : calendarToday - 1
+  const today = hour >= 21 ? calendarToday : calendarToday - 1
   const daysInMonth = new Date(year, month, 0).getDate()
 
   // 4. DBから最新データを取得（既存のダッシュボードと同じ関数を使用）

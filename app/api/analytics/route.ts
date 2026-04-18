@@ -17,8 +17,8 @@ export async function GET() {
   const month = now.getMonth() + 1
   const calendarToday = now.getDate()
   const hour = now.getHours()
-  // 22時締め: ダッシュボードと統一
-  const today = hour >= 22 ? calendarToday : calendarToday - 1
+  // 21時締め: ダッシュボードと統一
+  const today = hour >= 21 ? calendarToday : calendarToday - 1
   const db = getDB()
 
   // ── 1. 顧客リピート分析 ──────────────────────────────────
