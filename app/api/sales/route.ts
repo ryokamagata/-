@@ -220,8 +220,8 @@ export async function GET() {
     const effectiveDaysForForecast = Math.max(today, 1)
     const dailyAvg = effectiveDaysForForecast > 0 ? forecast.actualTotal / effectiveDaysForForecast : 0
     const monthProgressRate = effectiveDaysForForecast / daysInMonth
-    // 日割りペース着地（DOW曜日別は月初に不安定なので単純日割り）
-    const simplePaceEstimate = Math.round(dailyAvg * daysInMonth)
+    // 平日/土日祝を分けて算出したペース着地（forecastEngineで計算済み）
+    const simplePaceEstimate = forecast.forecastTotal
 
     // 前年同月データ取得
     const prevYearMonthly = getMonthlyTotalSales(year - 1, month, year - 1, month)

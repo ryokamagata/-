@@ -26,7 +26,12 @@ export type ForecastResult = {
   forecastTotal: number      // 実績 + 予測
   confidence: 'high' | 'medium' | 'low'
   dailyProjections: { date: string; projected: number }[]
-  dowAverages: Record<number, number>  // 曜日 → 平均売上
+  weekdayAverage: number     // 平日1日あたり平均売上
+  weekendAverage: number     // 土日祝1日あたり平均売上
+  weekdayCount: number       // 月内の平日日数（祝日除く）
+  weekendCount: number       // 月内の土日祝日数
+  weekdayActualDays: number  // 実績計上済みの平日日数
+  weekendActualDays: number  // 実績計上済みの土日祝日数
 }
 
 // 着地予測の詳細（3パターン + 根拠）

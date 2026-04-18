@@ -1,4 +1,5 @@
 import type { DailySales, ForecastResult } from './types'
+import { getHolidayMap } from './holidays'
 
 export function computeForecast(
   dailySales: DailySales[],
@@ -7,57 +8,84 @@ export function computeForecast(
   today: number
 ): ForecastResult {
   const daysInMonth = new Date(year, month, 0).getDate()
+  const pad = (n: number) => String(n).padStart(2, '0')
+  const monthStart = `${year}-${pad(month)}-01`
+  const monthEnd = `${year}-${pad(month)}-${pad(daysInMonth)}`
+  const holidays = getHolidayMap(monthStart, monthEnd)
 
-  // Step 1: 曜日別グループ化（ゼロ売上の日は除外）
-  const dowBuckets: Record<number, number[]> = {
-    0: [], 1: [], 2: [], 3: [], 4: [], 5: [], 6: [],
-  }
+  const isWeekendOrHoliday = (dateStr: string, dow: number): boolean =>
+    dow === 0 || dow === 6 || holidays[dateStr] !== undefined
+
+  // Step 1: 平日 / 土日祝 に分類して実績を集計（ゼロ売上の日は除外）
+  const weekdayAmounts: number[] = []
+  const weekendAmounts: number[] = []
   for (const day of dailySales) {
-    if (day.totalAmount > 0) {
-      const dow = new Date(day.date + 'T00:00:00').getDay()
-      dowBuckets[dow].push(day.totalAmount)
+    if (day.totalAmount <= 0) continue
+    const dow = new Date(day.date + 'T00:00:00').getDay()
+    if (isWeekendOrHoliday(day.date, dow)) {
+      weekendAmounts.push(day.totalAmount)
+    } else {
+      weekdayAmounts.push(day.totalAmount)
     }
   }
 
-  // Step 2: 曜日別平均
-  const dowAverages: Record<number, number> = {}
-  for (let dow = 0; dow <= 6; dow++) {
-    const amounts = dowBuckets[dow]
-    dowAverages[dow] =
-      amounts.length > 0
-        ? Math.round(amounts.reduce((s, a) => s + a, 0) / amounts.length)
-        : 0
+  const avg = (arr: number[]) =>
+    arr.length > 0 ? Math.round(arr.reduce((s, a) => s + a, 0) / arr.length) : 0
+
+  const weekdayAverage = avg(weekdayAmounts)
+  const weekendAverage = avg(weekendAmounts)
+
+  // Step 2: 月内の平日/土日祝の総日数
+  let weekdayCount = 0
+  let weekendCount = 0
+  for (let d = 1; d <= daysInMonth; d++) {
+    const dateStr = `${year}-${pad(month)}-${pad(d)}`
+    const dow = new Date(year, month - 1, d).getDay()
+    if (isWeekendOrHoliday(dateStr, dow)) weekendCount++
+    else weekdayCount++
   }
 
-  // Step 3: 全曜日が0の場合（データなし）のフォールバック
-  const hasData = Object.values(dowAverages).some((v) => v > 0)
-  if (!hasData) {
+  const weekdayActualDays = weekdayAmounts.length
+  const weekendActualDays = weekendAmounts.length
+
+  // Step 3: データなしフォールバック
+  if (weekdayAverage === 0 && weekendAverage === 0) {
     return {
       actualTotal: 0,
       projectedTotal: 0,
       forecastTotal: 0,
       confidence: 'low',
       dailyProjections: [],
-      dowAverages,
+      weekdayAverage: 0,
+      weekendAverage: 0,
+      weekdayCount,
+      weekendCount,
+      weekdayActualDays: 0,
+      weekendActualDays: 0,
     }
   }
 
-  // Step 4: 残り日数の予測
+  // 片側しかデータがない場合は、もう片方にも同じ平均を使ってフォールバック
+  const effectiveWeekdayAvg = weekdayAverage > 0 ? weekdayAverage : weekendAverage
+  const effectiveWeekendAvg = weekendAverage > 0 ? weekendAverage : weekdayAverage
+
+  // Step 4: 残り日数（today+1 〜 月末）を平日/土日祝の平均で予測
   const actualTotal = dailySales.reduce((s, d) => s + d.totalAmount, 0)
   const dailyProjections: { date: string; projected: number }[] = []
   let projectedTotal = 0
 
   for (let d = today + 1; d <= daysInMonth; d++) {
-    const futureDate = new Date(year, month - 1, d)
-    const dow = futureDate.getDay()
-    const projected = dowAverages[dow] ?? 0
-    const dateStr = `${year}-${String(month).padStart(2, '0')}-${String(d).padStart(2, '0')}`
+    const dateStr = `${year}-${pad(month)}-${pad(d)}`
+    const dow = new Date(year, month - 1, d).getDay()
+    const projected = isWeekendOrHoliday(dateStr, dow)
+      ? effectiveWeekendAvg
+      : effectiveWeekdayAvg
     dailyProjections.push({ date: dateStr, projected })
     projectedTotal += projected
   }
 
   // Step 5: 予測精度
-  const actualDays = dailySales.filter((d) => d.totalAmount > 0).length
+  const actualDays = weekdayActualDays + weekendActualDays
   const confidence: ForecastResult['confidence'] =
     actualDays >= 15 ? 'high' : actualDays >= 7 ? 'medium' : 'low'
 
@@ -67,6 +95,11 @@ export function computeForecast(
     forecastTotal: actualTotal + projectedTotal,
     confidence,
     dailyProjections,
-    dowAverages,
+    weekdayAverage,
+    weekendAverage,
+    weekdayCount,
+    weekendCount,
+    weekdayActualDays,
+    weekendActualDays,
   }
 }
