@@ -8,13 +8,12 @@ import {
 } from '@/lib/db'
 import { STORES, MAX_REVENUE_PER_SEAT, isClosedStore } from '@/lib/stores'
 import { getHolidayMap } from '@/lib/holidays'
-import { ensureFreshScrape, CUTOFF_HOUR, CUTOFF_MINUTE } from '@/lib/autoScrape'
+import { CUTOFF_HOUR, CUTOFF_MINUTE } from '@/lib/autoScrape'
 
+export const dynamic = 'force-dynamic'
 export const revalidate = 0
 
 export async function GET() {
-  await ensureFreshScrape()
-
   const now = new Date(new Date().toLocaleString('en-US', { timeZone: 'Asia/Tokyo' }))
   const year = now.getFullYear()
   const month = now.getMonth() + 1
@@ -456,6 +455,10 @@ export async function GET() {
     forecastAccuracy: {
       months: forecastAccuracyMonths,
       dowAccuracy,
+    },
+  }, {
+    headers: {
+      'Cache-Control': 'no-store, no-cache, must-revalidate, max-age=0',
     },
   })
 }

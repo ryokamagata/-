@@ -12,9 +12,10 @@ import {
 import { normalizeStaffName } from '@/lib/staffNormalize'
 import { isClosedStore, getStoreRevenueCap } from '@/lib/stores'
 import { computeForecast } from '@/lib/forecastEngine'
-import { ensureFreshScrape, CUTOFF_HOUR, CUTOFF_MINUTE } from '@/lib/autoScrape'
+import { CUTOFF_HOUR, CUTOFF_MINUTE } from '@/lib/autoScrape'
 import type { DailySales } from '@/lib/types'
 
+export const dynamic = 'force-dynamic'
 export const revalidate = 0
 
 // 年間サマリー型
@@ -53,8 +54,6 @@ interface Projection {
 }
 
 export async function GET() {
-  await ensureFreshScrape()
-
   // 2024年8月〜当月
   const now = new Date(new Date().toLocaleString('en-US', { timeZone: 'Asia/Tokyo' }))
   const toYear = now.getFullYear()
@@ -557,5 +556,9 @@ export async function GET() {
     storeOpeningPlans,
     seasonalIndex,
     storeProjections,
+  }, {
+    headers: {
+      'Cache-Control': 'no-store, no-cache, must-revalidate, max-age=0',
+    },
   })
 }

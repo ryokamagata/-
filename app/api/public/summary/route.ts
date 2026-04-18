@@ -12,8 +12,9 @@ import {
 import { computeForecast } from '@/lib/forecastEngine'
 import { isClosedStore } from '@/lib/stores'
 import { normalizeStaffName } from '@/lib/staffNormalize'
-import { ensureFreshScrape, CUTOFF_HOUR, CUTOFF_MINUTE } from '@/lib/autoScrape'
+import { CUTOFF_HOUR, CUTOFF_MINUTE } from '@/lib/autoScrape'
 
+export const dynamic = 'force-dynamic'
 export const revalidate = 0
 
 // レート制限用の簡易カウンター（プロセス内メモリ）
@@ -44,8 +45,6 @@ export async function GET(request: NextRequest) {
   } else {
     rateLimit.set(clientId, { count: 1, resetAt: now + RATE_LIMIT_WINDOW })
   }
-
-  await ensureFreshScrape()
 
   // 3. 現在の年月日を取得（JST）
   const jstNow = new Date(new Date().toLocaleString('en-US', { timeZone: 'Asia/Tokyo' }))
