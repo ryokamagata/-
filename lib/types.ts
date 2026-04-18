@@ -45,8 +45,14 @@ export type ForecastDetail = {
     prevYearSales: number | null // 前年同月実績
     yoyGrowthRate: number | null // 完了月平均YoY成長率(%)
     paceWeight: number         // ペース重み(0-1)
-    dailyAvg: number           // 日平均売上
+    dailyAvg: number           // 全体の日平均売上
     monthProgress: number      // 月進捗率(0-1)
+    weekdayAvg: number         // 平日1日あたり平均売上
+    weekendAvg: number         // 土日祝1日あたり平均売上
+    weekdayCount: number       // 月内の平日日数
+    weekendCount: number       // 月内の土日祝日数
+    weekdayActualDays: number  // 実績計上済みの平日日数
+    weekendActualDays: number  // 実績計上済みの土日祝日数
   }
 }
 

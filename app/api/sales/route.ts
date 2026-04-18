@@ -307,6 +307,12 @@ export async function GET() {
         paceWeight,
         dailyAvg: Math.round(dailyAvg),
         monthProgress: monthProgressRate,
+        weekdayAvg: forecast.weekdayAverage,
+        weekendAvg: forecast.weekendAverage,
+        weekdayCount: forecast.weekdayCount,
+        weekendCount: forecast.weekendCount,
+        weekdayActualDays: forecast.weekdayActualDays,
+        weekendActualDays: forecast.weekendActualDays,
       },
     }
   }
