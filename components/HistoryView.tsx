@@ -235,7 +235,7 @@ function AnnualOverview({ data, onRefresh }: { data: HistoryData; onRefresh: () 
             {projection.avgYoYGrowthRate !== null && (
               <p>完了月平均成長率: {projection.avgYoYGrowthRate >= 0 ? '+' : ''}{projection.avgYoYGrowthRate.toFixed(1)}%（前年同月比）</p>
             )}
-            <p>完了実績: {projection.ytdMonths}ヶ月 {formatOkuMan(projection.ytdTotal)} / 今月+残り月は前年同月×成長率で予測</p>
+            <p>完了実績: {projection.ytdMonths}ヶ月 {formatOkuMan(projection.ytdTotal)} / 今月はペース着地（日割り）、残り月は「今月ペース÷今月季節率×対象月季節率」で予測</p>
             <p>高め見込み = 標準予測の105% / 堅実ライン = 標準予測の95%</p>
             {prevYearSummary && (
               <p>前年実績: {formatOkuMan(prevYearSummary.total)}
