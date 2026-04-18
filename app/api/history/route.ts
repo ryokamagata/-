@@ -58,8 +58,9 @@ export async function GET() {
   const toMonth = now.getMonth() + 1
   const calendarToday = now.getDate()
   const hour = now.getHours()
-  // 21時締め: ダッシュボードと合わせて同じ today を使用
-  const today = hour >= 21 ? calendarToday : calendarToday - 1
+  const minute = now.getMinutes()
+  // 20:45締め: ダッシュボードと合わせて同じ today を使用
+  const today = (hour > 20 || (hour === 20 && minute >= 45)) ? calendarToday : calendarToday - 1
   const daysInCurrentMonth = new Date(toYear, toMonth, 0).getDate()
   const currentMonthKey = `${toYear}-${String(toMonth).padStart(2, '0')}`
 
@@ -226,7 +227,7 @@ export async function GET() {
 
       if (currentMonthActual && currentMonthActual.sales > 0) {
         // 当月実績あり → forecastEngineで平日/土日祝ペース着地を算出
-        // ダッシュボードと合わせて 21時締めcutoff でフィルタ
+        // ダッシュボードと合わせて 20:45締めcutoff でフィルタ
         const cutoffDate = `${toYear}-${String(toMonth).padStart(2, '0')}-${String(Math.max(today, 0)).padStart(2, '0')}`
         const rawDaily = getScrapedDailySales(toYear, toMonth)
         const dailySalesForForecast: DailySales[] = rawDaily

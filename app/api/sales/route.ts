@@ -25,8 +25,9 @@ export async function GET() {
   const month = now.getMonth() + 1
   const calendarToday = now.getDate()
   const hour = now.getHours()
-  // 21時締め: 21時を過ぎるまでは前日までのデータを使う
-  const today = hour >= 21 ? calendarToday : calendarToday - 1
+  const minute = now.getMinutes()
+  // 20:45締め: 20:45を過ぎるまでは前日までのデータを使う
+  const today = (hour > 20 || (hour === 20 && minute >= 45)) ? calendarToday : calendarToday - 1
   const daysInMonth = new Date(year, month, 0).getDate()
 
   const monthlyTarget = getTarget(year, month)
@@ -36,7 +37,7 @@ export async function GET() {
   let storeBreakdown: { store: string; sales: number }[]
   let staffBreakdown: { staff: string; sales: number }[]
 
-  // 21時締め: today日目までのデータのみ使用
+  // 20:45締め: today日目までのデータのみ使用
   const cutoffDate = `${year}-${String(month).padStart(2, '0')}-${String(Math.max(today, 0)).padStart(2, '0')}`
 
   const scrapedDaily = getScrapedDailySales(year, month)
