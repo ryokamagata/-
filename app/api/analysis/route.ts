@@ -194,32 +194,77 @@ export async function GET() {
   const filterByRange = (rows: typeof allDailySales, from: string, to: string) =>
     rows.filter(r => r.date >= from && r.date <= to)
 
-  // 曜日別平均売上（今週の予測に使用）
-  const dowAvgForForecast: Record<number, number> = {}
-  const dowAvgCustomersForForecast: Record<number, number> = {}
+  // ── 曜日別予測平均を「日次合計の中央値」で算出 ─────────────────────────────
+  // 過去3ヶ月の実データから、曜日ごとに日次合計の中央値を取る(外れ値に強い)
+  // 閉店店舗は除外し、「実際にその日売上があった日」だけを母集団とする
+  const dowFromStr = `${dowFromYear}-${String(dowFromMonth).padStart(2, '0')}-01`
+  const dowToStr = `${toYear}-${String(toMonth).padStart(2, '0')}-31`
 
-  // 店舗別・曜日別平均売上（店舗絞込時の予測に使用）
-  const dowAvgByStoreForForecast: Record<string, Record<number, number>> = {}
-  const dowAvgCustomersByStoreForForecast: Record<string, Record<number, number>> = {}
-  for (const d of dowByStore) {
-    if (isClosedStore(d.store)) continue
-    if (!dowAvgByStoreForForecast[d.store]) dowAvgByStoreForForecast[d.store] = {}
-    if (!dowAvgCustomersByStoreForForecast[d.store]) dowAvgCustomersByStoreForForecast[d.store] = {}
-    dowAvgByStoreForForecast[d.store][d.dow] = d.avgSales
-    dowAvgCustomersByStoreForForecast[d.store][d.dow] = d.avgCustomers
+  // 店舗別・日別の生データ (閉店店舗は除外)
+  const dowRawStore = getStoreDailySales(dowFromStr, dowToStr).filter(r => !isClosedStore(r.store))
+
+  // 店舗別 × 曜日 × 日付 → 売上合計 (同日複数行があってもsumで統合)
+  const storeDowDateMap: Record<string, Record<number, Record<string, { sales: number; customers: number }>>> = {}
+  for (const r of dowRawStore) {
+    const dow = new Date(r.date + 'T00:00:00').getDay()
+    if (!storeDowDateMap[r.store]) storeDowDateMap[r.store] = {}
+    if (!storeDowDateMap[r.store][dow]) storeDowDateMap[r.store][dow] = {}
+    const cur = storeDowDateMap[r.store][dow][r.date] ?? { sales: 0, customers: 0 }
+    storeDowDateMap[r.store][dow][r.date] = {
+      sales: cur.sales + r.sales,
+      customers: cur.customers + r.customers,
+    }
   }
 
-  // 全店合計の曜日別平均を、閉店店舗除外した店舗別平均の合計で再計算
-  const openStores = Object.keys(dowAvgByStoreForForecast)
-  for (let dow = 0; dow <= 6; dow++) {
-    let sumSales = 0
-    let sumCust = 0
-    for (const s of openStores) {
-      sumSales += dowAvgByStoreForForecast[s][dow] ?? 0
-      sumCust += dowAvgCustomersByStoreForForecast[s][dow] ?? 0
+  // 中央値ヘルパー
+  const median = (arr: number[]): number => {
+    if (arr.length === 0) return 0
+    const sorted = [...arr].sort((a, b) => a - b)
+    const mid = Math.floor(sorted.length / 2)
+    return sorted.length % 2 === 0
+      ? Math.round((sorted[mid - 1] + sorted[mid]) / 2)
+      : sorted[mid]
+  }
+
+  // 店舗別の曜日平均(中央値ベース、売上>0の日だけを母集団)
+  const dowAvgByStoreForForecast: Record<string, Record<number, number>> = {}
+  const dowAvgCustomersByStoreForForecast: Record<string, Record<number, number>> = {}
+  for (const [store, dowMap] of Object.entries(storeDowDateMap)) {
+    dowAvgByStoreForForecast[store] = {}
+    dowAvgCustomersByStoreForForecast[store] = {}
+    for (let dow = 0; dow <= 6; dow++) {
+      const entries = Object.values(dowMap[dow] ?? {})
+      const salesVals = entries.map(e => e.sales).filter(v => v > 0)
+      const custVals = entries.map(e => e.customers).filter(v => v > 0)
+      dowAvgByStoreForForecast[store][dow] = median(salesVals)
+      dowAvgCustomersByStoreForForecast[store][dow] = median(custVals)
     }
-    if (sumSales > 0) dowAvgForForecast[dow] = sumSales
-    if (sumCust > 0) dowAvgCustomersForForecast[dow] = sumCust
+  }
+
+  // 全店合計の曜日平均: 日次合計の中央値
+  const allStoreDayMap: Record<number, Record<string, { sales: number; customers: number }>> = {}
+  for (const [, dowMap] of Object.entries(storeDowDateMap)) {
+    for (const [dowStr, dateMap] of Object.entries(dowMap)) {
+      const dow = parseInt(dowStr)
+      if (!allStoreDayMap[dow]) allStoreDayMap[dow] = {}
+      for (const [date, v] of Object.entries(dateMap)) {
+        const cur = allStoreDayMap[dow][date] ?? { sales: 0, customers: 0 }
+        allStoreDayMap[dow][date] = {
+          sales: cur.sales + v.sales,
+          customers: cur.customers + v.customers,
+        }
+      }
+    }
+  }
+
+  const dowAvgForForecast: Record<number, number> = {}
+  const dowAvgCustomersForForecast: Record<number, number> = {}
+  for (let dow = 0; dow <= 6; dow++) {
+    const entries = Object.values(allStoreDayMap[dow] ?? {})
+    const salesVals = entries.map(e => e.sales).filter(v => v > 0)
+    const custVals = entries.map(e => e.customers).filter(v => v > 0)
+    dowAvgForForecast[dow] = median(salesVals)
+    dowAvgCustomersForForecast[dow] = median(custVals)
   }
 
   const buildWeekDays = (rows: typeof allDailySales, mondayDate: Date) => {
