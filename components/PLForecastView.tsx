@@ -36,6 +36,20 @@ type PLForecast = {
   breakEvenRevenue: number
 }
 
+type DataSource = {
+  lastScrapeAt: string | null
+  scrapedDaysOfMonth: number | null
+  plImport: {
+    rowCount: number
+    hasRevenue: boolean
+    costAccountCount: number
+    lastImportedAt: string | null
+    source: string | null
+  }
+  revenueSource: 'pl_actual' | 'sales_forecast'
+  overrides: { fixedCostCount: number; variableRateCount: number }
+}
+
 type PLResponse = {
   year: number
   month: number
@@ -44,6 +58,7 @@ type PLResponse = {
   trend: { ym: string; revenue: number; opProfit: number; opMargin: number }[]
   kpi: { opMarginTargetPct: number; opMarginPct: number; diffPct: number; passed: boolean }
   monthlyTarget: number | null
+  dataSource: DataSource
 }
 
 const STAGE_LABEL: Record<PLForecast['stage'], string> = {
@@ -237,6 +252,12 @@ export default function PLForecastView() {
         {msg && <p className="text-xs text-gray-400 mt-1 whitespace-pre-wrap">{msg}</p>}
       </div>
 
+      {/* データソース（売上・コストの出処） */}
+      <DataSourceCard ds={data.dataSource} year={data.year} month={data.month} />
+
+      {/* 固定費の手入力（新卒入社など PL に反映したい固定費を有効開始月とともに登録） */}
+      <FixedCostEditor year={data.year} month={data.month} onSaved={refresh} />
+
       {/* 科目別 PL テーブル (subcategory 階層) */}
       <div className="bg-gray-800 rounded-xl p-4">
         <div className="flex items-center justify-between mb-3">
@@ -334,6 +355,206 @@ export default function PLForecastView() {
       )}
     </div>
   )
+}
+
+// ─── データソースカード ──────────────────────────────────
+function DataSourceCard({ ds, year, month }: { ds: DataSource; year: number; month: number }) {
+  const fmtTs = (s: string | null) => {
+    if (!s) return '—'
+    // "2026-04-28T20:45:12" → "04/28 20:45"
+    const m = s.match(/^(\d{4})-(\d{2})-(\d{2})[T ](\d{2}):(\d{2})/)
+    if (!m) return s
+    return `${m[2]}/${m[3]} ${m[4]}:${m[5]}`
+  }
+  const revenueSourceLabel = ds.revenueSource === 'pl_actual' ? 'PL確定値（シート取込）' : '売上速報スクレイプの予測値'
+  const sourceColor = ds.revenueSource === 'pl_actual' ? 'text-green-400' : 'text-yellow-400'
+  return (
+    <div className="bg-gray-800 rounded-xl p-4 space-y-2 border border-gray-700/50">
+      <div className="flex items-center justify-between flex-wrap gap-2">
+        <h2 className="text-sm font-medium text-gray-300">データソース（{year}年{month}月）</h2>
+        <span className={`text-[10px] px-2 py-0.5 rounded bg-gray-900/60 ${sourceColor}`}>
+          売上 = {revenueSourceLabel}
+        </span>
+      </div>
+      <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 text-[11px]">
+        <div className="bg-gray-900/40 rounded p-2">
+          <div className="text-gray-500">売上速報スクレイプ</div>
+          <div className="text-gray-200 font-medium">{fmtTs(ds.lastScrapeAt)}</div>
+          <div className="text-gray-500 text-[10px]">
+            当月取込日数: {ds.scrapedDaysOfMonth ?? '—'}日
+          </div>
+        </div>
+        <div className="bg-gray-900/40 rounded p-2">
+          <div className="text-gray-500">PL（Googleシート）</div>
+          <div className="text-gray-200 font-medium">{fmtTs(ds.plImport.lastImportedAt)}</div>
+          <div className="text-gray-500 text-[10px]">
+            当月: {ds.plImport.rowCount}行 / {ds.plImport.costAccountCount}科目
+            {ds.plImport.hasRevenue ? ' / 売上◎' : ' / 売上空欄'}
+          </div>
+        </div>
+        <div className="bg-gray-900/40 rounded p-2">
+          <div className="text-gray-500">手動上書き（当月）</div>
+          <div className="text-gray-200 font-medium">
+            固定費 {ds.overrides.fixedCostCount}件 / 変動率 {ds.overrides.variableRateCount}件
+          </div>
+          <div className="text-gray-500 text-[10px]">下のフォームで追加可能</div>
+        </div>
+      </div>
+      {ds.revenueSource === 'sales_forecast' && (
+        <p className="text-[10px] text-yellow-400/80 leading-relaxed">
+          ⚠ 当月のシート売上が空欄のため、売上は <strong>売上速報スクレイプの着地予測</strong> を使用しています。
+          画面の数字が動かない場合は <strong>「① Googleシートから実績PLを取込」</strong> を再実行するか、
+          売上速報のスクレイプ最終時刻が古くないかを確認してください。
+        </p>
+      )}
+    </div>
+  )
+}
+
+// ─── 固定費の手入力 ──────────────────────────────────────
+type FixedCostAccount = { code: string; name: string; category: string; subcategory: string | null }
+type FixedCostRow = {
+  account_code: string; store: string | null
+  valid_from: string; valid_to: string | null
+  amount: number; note: string | null
+}
+
+function FixedCostEditor({ year, month, onSaved }: { year: number; month: number; onSaved: () => Promise<void> | void }) {
+  const [accounts, setAccounts] = useState<FixedCostAccount[]>([])
+  const [active, setActive] = useState<FixedCostRow[]>([])
+  const [accountCode, setAccountCode] = useState<string>('')
+  const [validFrom, setValidFrom] = useState<string>(`${year}-${String(month).padStart(2, '0')}`)
+  const [validTo, setValidTo] = useState<string>('')
+  const [amount, setAmount] = useState<string>('')
+  const [note, setNote] = useState<string>('')
+  const [busy, setBusy] = useState(false)
+  const [msg, setMsg] = useState<string | null>(null)
+
+  const fetchData = useCallback(async () => {
+    const res = await fetch(`/api/pl-fixed-cost?year=${year}&month=${month}`, { cache: 'no-store' })
+    const j = await res.json()
+    setAccounts(j.accounts ?? [])
+    setActive(j.fixedCosts ?? [])
+    if (!accountCode && j.accounts?.length > 0) {
+      const def = j.accounts.find((a: FixedCostAccount) => a.code === 'cogs_salon_salary') ?? j.accounts[0]
+      setAccountCode(def.code)
+    }
+  }, [year, month, accountCode])
+
+  useEffect(() => { fetchData() }, [fetchData])
+
+  const submit = async (e: React.FormEvent) => {
+    e.preventDefault()
+    const amt = parseFloat(amount.replace(/[,¥\s]/g, ''))
+    if (!Number.isFinite(amt)) { setMsg('金額を入力してください'); return }
+    if (!accountCode || !validFrom) { setMsg('科目と有効開始月を入力してください'); return }
+    setBusy(true); setMsg(null)
+    try {
+      const res = await fetch('/api/pl-fixed-cost', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          accountCode, amount: amt, validFrom,
+          validTo: validTo || null,
+          note: note || null,
+        }),
+      })
+      const j = await res.json()
+      if (!res.ok || !j.ok) {
+        setMsg(`保存失敗: ${j.error ?? res.statusText}`)
+      } else {
+        setMsg('保存しました')
+        setAmount(''); setNote('')
+        await fetchData()
+        await onSaved()
+      }
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  const accountByCode = new Map(accounts.map(a => [a.code, a]))
+  return (
+    <div className="bg-gray-800 rounded-xl p-4 space-y-3">
+      <div>
+        <h2 className="text-sm font-medium text-gray-300">固定費の手入力（新卒入社・人件費見直し等）</h2>
+        <p className="text-[11px] text-gray-500 leading-relaxed mt-1">
+          科目を選んで「有効開始月」とともに登録すると、その月以降のPL予測に反映されます。
+          終了月は空欄でOK（無期限）。例: アシスタント給与（22万 × 19人 = 418万）は <code>【原】給与手当(サロン社員)</code>、
+          法定福利費（社会保険料）は <code>【原】法定福利費</code> に分けて登録。
+        </p>
+      </div>
+
+      <form onSubmit={submit} className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+        <label className="flex flex-col text-[11px] text-gray-400 gap-0.5">
+          <span>科目</span>
+          <select value={accountCode} onChange={e => setAccountCode(e.target.value)}
+                  className="bg-gray-900 text-gray-100 text-xs rounded px-2 py-1.5 border border-gray-700">
+            {accounts.map(a => (
+              <option key={a.code} value={a.code}>
+                [{a.category === 'cogs' ? '原価' : '販管'}/{subcatLabel(a.subcategory)}] {a.name}
+              </option>
+            ))}
+          </select>
+        </label>
+        <label className="flex flex-col text-[11px] text-gray-400 gap-0.5">
+          <span>金額（月額・円）</span>
+          <input value={amount} onChange={e => setAmount(e.target.value)} placeholder="例: 4180000"
+                 inputMode="numeric"
+                 className="bg-gray-900 text-gray-100 text-xs rounded px-2 py-1.5 border border-gray-700" />
+        </label>
+        <label className="flex flex-col text-[11px] text-gray-400 gap-0.5">
+          <span>有効開始月（YYYY-MM）</span>
+          <input value={validFrom} onChange={e => setValidFrom(e.target.value)} placeholder="2026-04"
+                 className="bg-gray-900 text-gray-100 text-xs rounded px-2 py-1.5 border border-gray-700" />
+        </label>
+        <label className="flex flex-col text-[11px] text-gray-400 gap-0.5">
+          <span>有効終了月（任意・空欄で無期限）</span>
+          <input value={validTo} onChange={e => setValidTo(e.target.value)} placeholder="2027-03"
+                 className="bg-gray-900 text-gray-100 text-xs rounded px-2 py-1.5 border border-gray-700" />
+        </label>
+        <label className="flex flex-col text-[11px] text-gray-400 gap-0.5 sm:col-span-2">
+          <span>メモ（任意）</span>
+          <input value={note} onChange={e => setNote(e.target.value)} placeholder="例: 4月新卒19名 22万×19=418万"
+                 className="bg-gray-900 text-gray-100 text-xs rounded px-2 py-1.5 border border-gray-700" />
+        </label>
+        <div className="sm:col-span-2 flex items-center gap-2">
+          <button type="submit" disabled={busy}
+                  className="text-xs px-3 py-1.5 bg-emerald-600 hover:bg-emerald-500 disabled:bg-gray-700 text-white rounded-md">
+            保存
+          </button>
+          {msg && <span className="text-[11px] text-gray-400">{msg}</span>}
+        </div>
+      </form>
+
+      {/* 当月有効な手入力固定費の一覧 */}
+      {active.length > 0 && (
+        <div className="border-t border-gray-700/50 pt-2">
+          <p className="text-[11px] text-gray-500 mb-1">当月有効の手入力固定費（{active.length}件）</p>
+          <div className="space-y-1">
+            {active.map((f, i) => {
+              const acc = accountByCode.get(f.account_code)
+              return (
+                <div key={i} className="flex items-center justify-between text-[11px] bg-gray-900/40 rounded px-2 py-1">
+                  <div className="min-w-0 flex-1 truncate">
+                    <span className="text-gray-300">{acc?.name ?? f.account_code}</span>
+                    <span className="text-gray-500 ml-2">{f.valid_from} 〜 {f.valid_to ?? '無期限'}</span>
+                    {f.note && <span className="text-gray-600 ml-2">／ {f.note}</span>}
+                  </div>
+                  <span className="text-gray-200 font-medium ml-2">¥{f.amount.toLocaleString()}</span>
+                </div>
+              )
+            })}
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
+
+function subcatLabel(s: string | null): string {
+  if (!s) return '—'
+  return ({ material: '材料', personnel: '人件費', promo: '広告', rent: '家賃', utility: '水光', other: 'その他', revenue: '売上', income: '収益', expense: '費用' } as Record<string, string>)[s] ?? s
 }
 
 function SubcatBlock({ label, lines, total }: { label: string; lines: PLLine[]; total: number }) {
