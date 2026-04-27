@@ -419,6 +419,19 @@ type FixedCostRow = {
   amount: number; note: string | null
 }
 
+type ExtractCandidate = {
+  amount: number
+  expression: string
+  snippet: string
+  suggestedAccountCode: string | null
+  confidence: 'high' | 'medium' | 'low'
+  reason: string
+}
+type ExtractedPage = {
+  pageId: string; title: string; url: string; lastEdited: string
+  candidates: ExtractCandidate[]
+}
+
 function FixedCostEditor({ year, month, onSaved }: { year: number; month: number; onSaved: () => Promise<void> | void }) {
   const [accounts, setAccounts] = useState<FixedCostAccount[]>([])
   const [active, setActive] = useState<FixedCostRow[]>([])
@@ -429,6 +442,9 @@ function FixedCostEditor({ year, month, onSaved }: { year: number; month: number
   const [note, setNote] = useState<string>('')
   const [busy, setBusy] = useState(false)
   const [msg, setMsg] = useState<string | null>(null)
+  const [extractBusy, setExtractBusy] = useState(false)
+  const [extractMsg, setExtractMsg] = useState<string | null>(null)
+  const [extractedPages, setExtractedPages] = useState<ExtractedPage[]>([])
 
   const fetchData = useCallback(async () => {
     const res = await fetch(`/api/pl-fixed-cost?year=${year}&month=${month}`, { cache: 'no-store' })
@@ -473,6 +489,36 @@ function FixedCostEditor({ year, month, onSaved }: { year: number; month: number
     }
   }
 
+  const runExtract = async () => {
+    setExtractBusy(true); setExtractMsg(null)
+    try {
+      const res = await fetch('/api/pl-extract-from-minutes', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ daysBack: 90, maxPages: 12 }),
+      })
+      const j = await res.json()
+      if (!res.ok || !j.ok) {
+        setExtractMsg(`抽出失敗: ${j.error ?? res.statusText}`)
+        setExtractedPages([])
+      } else {
+        setExtractedPages(j.pages ?? [])
+        setExtractMsg(`${j.pagesScanned}件のページから ${j.totalCandidates}件の候補を抽出（直近${j.daysBack}日）`)
+      }
+    } catch (e) {
+      setExtractMsg(`通信エラー: ${e instanceof Error ? e.message : String(e)}`)
+    } finally {
+      setExtractBusy(false)
+    }
+  }
+
+  const useCandidate = (page: ExtractedPage, c: ExtractCandidate) => {
+    if (c.suggestedAccountCode) setAccountCode(c.suggestedAccountCode)
+    setAmount(String(c.amount))
+    setNote(`Notion議事録「${page.title}」より: ${c.expression}`)
+    setMsg('候補をフォームに反映しました（保存ボタンで確定）')
+  }
+
   const accountByCode = new Map(accounts.map(a => [a.code, a]))
   return (
     <div className="bg-gray-800 rounded-xl p-4 space-y-3">
@@ -483,6 +529,65 @@ function FixedCostEditor({ year, month, onSaved }: { year: number; month: number
           終了月は空欄でOK（無期限）。例: アシスタント給与（22万 × 19人 = 418万）は <code>【原】給与手当(サロン社員)</code>、
           法定福利費（社会保険料）は <code>【原】法定福利費</code> に分けて登録。
         </p>
+      </div>
+
+      {/* 議事録（Notion）からの候補抽出 */}
+      <div className="bg-gray-900/40 rounded-lg p-3 space-y-2 border border-gray-700/50">
+        <div className="flex items-center justify-between flex-wrap gap-2">
+          <div className="text-[11px] text-gray-400">
+            <span className="text-gray-300 font-medium">📝 Notion議事録から候補抽出</span>
+            <span className="text-gray-500 ml-2">直近90日のHD/サロン役員会議事録を検索 → 「給与」「人件費」「正社員」周辺の金額を抽出</span>
+          </div>
+          <button onClick={runExtract} disabled={extractBusy}
+                  className="text-[11px] px-3 py-1.5 bg-indigo-600 hover:bg-indigo-500 disabled:bg-gray-700 text-white rounded-md whitespace-nowrap">
+            {extractBusy ? '抽出中…' : '議事録から抽出'}
+          </button>
+        </div>
+        {extractMsg && <p className="text-[10px] text-gray-400">{extractMsg}</p>}
+        {extractedPages.length > 0 && (
+          <div className="space-y-2 max-h-80 overflow-y-auto pr-1">
+            {extractedPages.map(page => (
+              <div key={page.pageId} className="bg-gray-800/60 rounded p-2">
+                <div className="text-[11px] text-gray-300 font-medium truncate">
+                  <a href={page.url} target="_blank" rel="noreferrer" className="hover:text-blue-400">
+                    {page.title}
+                  </a>
+                  <span className="text-gray-600 ml-2 text-[10px]">{page.lastEdited.slice(0, 10)}</span>
+                </div>
+                <div className="space-y-1 mt-1">
+                  {page.candidates.map((c, i) => (
+                    <div key={i} className="bg-gray-900/60 rounded px-2 py-1.5">
+                      <div className="flex items-center justify-between gap-2 flex-wrap">
+                        <div className="flex items-center gap-2 min-w-0">
+                          <span className={`text-[9px] px-1 py-0.5 rounded ${
+                            c.confidence === 'high' ? 'bg-green-900/60 text-green-300'
+                            : c.confidence === 'medium' ? 'bg-yellow-900/60 text-yellow-300'
+                            : 'bg-gray-700 text-gray-400'
+                          }`}>
+                            {c.confidence === 'high' ? '高' : c.confidence === 'medium' ? '中' : '低'}
+                          </span>
+                          <span className="text-[11px] text-gray-200 font-medium">¥{c.amount.toLocaleString()}</span>
+                          <span className="text-[10px] text-gray-500 truncate">{c.expression}</span>
+                          {c.suggestedAccountCode && (
+                            <span className="text-[9px] text-blue-300/80">→ {accountByCode.get(c.suggestedAccountCode)?.name ?? c.suggestedAccountCode}</span>
+                          )}
+                        </div>
+                        <button onClick={() => useCandidate(page, c)}
+                                className="text-[10px] px-2 py-0.5 bg-emerald-700/60 hover:bg-emerald-600 text-emerald-100 rounded">
+                          採用 →フォームへ
+                        </button>
+                      </div>
+                      <p className="text-[10px] text-gray-500 mt-0.5">
+                        <span className="text-gray-600">…</span>{c.snippet}<span className="text-gray-600">…</span>
+                      </p>
+                      <p className="text-[9px] text-gray-600 mt-0.5">{c.reason}</p>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
       </div>
 
       <form onSubmit={submit} className="grid grid-cols-1 sm:grid-cols-2 gap-2">
