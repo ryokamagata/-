@@ -213,25 +213,25 @@ export default function PLForecastView() {
       <div className="bg-gray-800 rounded-xl p-4 space-y-2">
         <h2 className="text-sm font-medium text-gray-300">確定PL データ操作</h2>
         <p className="text-[11px] text-gray-500">
-          ★月次決算速報値シート (2025年9月期) からの取込、実績からの変動率/固定費シード、fixture取込の3系統。
+          ① Googleシート（月次決算速報値・2025年9月期〜）から実績PLを取込／② シートに繋がない時用の同梱サンプルから取込／③ 取込済みの実績から変動費率・固定費を自動算出
         </p>
         <div className="flex flex-wrap gap-2">
-          <button onClick={() => callApi('/api/import-pl-spreadsheet', { fiscalStartYear: 2025, confirmedThrough: '2026-02' }, 'シート取込')}
+          <button onClick={() => callApi('/api/import-pl-spreadsheet', { fiscalStartYear: 2025, confirmedThrough: '2026-02' }, 'Googleシート取込')}
                   disabled={busy} className="text-xs px-3 py-1.5 bg-blue-600 hover:bg-blue-500 disabled:bg-gray-700 text-white rounded-md">
-            シートから取込
+            ① Googleシートから実績PLを取込
           </button>
-          <button onClick={() => callApi('/api/seed-pl-from-text', { useFixture: true, fiscalStartYear: 2025, confirmedThrough: '2026-02' }, 'fixture取込')}
+          <button onClick={() => callApi('/api/seed-pl-from-text', { useFixture: true, fiscalStartYear: 2025, confirmedThrough: '2026-02' }, '同梱サンプル取込')}
                   disabled={busy} className="text-xs px-3 py-1.5 bg-cyan-600 hover:bg-cyan-500 disabled:bg-gray-700 text-white rounded-md">
-            fixtureから取込 (オフライン)
+            ② 同梱サンプルから取込（オフラインテスト用）
           </button>
-          <button onClick={() => callApi('/api/seed-pl-params', { fromYear: 2025, fromMonth: 9, toYear: 2026, toMonth: 2 }, '実績から自動算出')}
+          <button onClick={() => callApi('/api/seed-pl-params', { fromYear: 2025, fromMonth: 9, toYear: 2026, toMonth: 2 }, '変動率/固定費 自動算出')}
                   disabled={busy} className="text-xs px-3 py-1.5 bg-purple-600 hover:bg-purple-500 disabled:bg-gray-700 text-white rounded-md">
-            実績から変動率/固定費を自動算出
+            ③ 実績から変動率/固定費を自動算出
           </button>
           <a href={`https://docs.google.com/spreadsheets/d/12Jo2w0pjKi_cUongNdmtzFS0sHbuZDAhWnBSAKxgxBo/edit`}
              target="_blank" rel="noreferrer"
              className="text-xs px-3 py-1.5 bg-gray-700 hover:bg-gray-600 text-gray-200 rounded-md">
-            シートを開く
+            元シートを開く
           </a>
         </div>
         {msg && <p className="text-xs text-gray-400 mt-1 whitespace-pre-wrap">{msg}</p>}
