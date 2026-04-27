@@ -36,6 +36,20 @@ type PLForecast = {
   breakEvenRevenue: number
 }
 
+type DataSource = {
+  lastScrapeAt: string | null
+  scrapedDaysOfMonth: number | null
+  plImport: {
+    rowCount: number
+    hasRevenue: boolean
+    costAccountCount: number
+    lastImportedAt: string | null
+    source: string | null
+  }
+  revenueSource: 'pl_actual' | 'sales_forecast'
+  overrides: { fixedCostCount: number; variableRateCount: number }
+}
+
 type PLResponse = {
   year: number
   month: number
@@ -44,6 +58,7 @@ type PLResponse = {
   trend: { ym: string; revenue: number; opProfit: number; opMargin: number }[]
   kpi: { opMarginTargetPct: number; opMarginPct: number; diffPct: number; passed: boolean }
   monthlyTarget: number | null
+  dataSource: DataSource
 }
 
 const STAGE_LABEL: Record<PLForecast['stage'], string> = {
@@ -213,29 +228,35 @@ export default function PLForecastView() {
       <div className="bg-gray-800 rounded-xl p-4 space-y-2">
         <h2 className="text-sm font-medium text-gray-300">確定PL データ操作</h2>
         <p className="text-[11px] text-gray-500">
-          ★月次決算速報値シート (2025年9月期) からの取込、実績からの変動率/固定費シード、fixture取込の3系統。
+          ① Googleシート（月次決算速報値・2025年9月期〜）から実績PLを取込／② シートに繋がない時用の同梱サンプルから取込／③ 取込済みの実績から変動費率・固定費を自動算出
         </p>
         <div className="flex flex-wrap gap-2">
-          <button onClick={() => callApi('/api/import-pl-spreadsheet', { fiscalStartYear: 2025, confirmedThrough: '2026-02' }, 'シート取込')}
+          <button onClick={() => callApi('/api/import-pl-spreadsheet', { fiscalStartYear: 2025, confirmedThrough: '2026-02' }, 'Googleシート取込')}
                   disabled={busy} className="text-xs px-3 py-1.5 bg-blue-600 hover:bg-blue-500 disabled:bg-gray-700 text-white rounded-md">
-            シートから取込
+            ① Googleシートから実績PLを取込
           </button>
-          <button onClick={() => callApi('/api/seed-pl-from-text', { useFixture: true, fiscalStartYear: 2025, confirmedThrough: '2026-02' }, 'fixture取込')}
+          <button onClick={() => callApi('/api/seed-pl-from-text', { useFixture: true, fiscalStartYear: 2025, confirmedThrough: '2026-02' }, '同梱サンプル取込')}
                   disabled={busy} className="text-xs px-3 py-1.5 bg-cyan-600 hover:bg-cyan-500 disabled:bg-gray-700 text-white rounded-md">
-            fixtureから取込 (オフライン)
+            ② 同梱サンプルから取込（オフラインテスト用）
           </button>
-          <button onClick={() => callApi('/api/seed-pl-params', { fromYear: 2025, fromMonth: 9, toYear: 2026, toMonth: 2 }, '実績から自動算出')}
+          <button onClick={() => callApi('/api/seed-pl-params', { fromYear: 2025, fromMonth: 9, toYear: 2026, toMonth: 2 }, '変動率/固定費 自動算出')}
                   disabled={busy} className="text-xs px-3 py-1.5 bg-purple-600 hover:bg-purple-500 disabled:bg-gray-700 text-white rounded-md">
-            実績から変動率/固定費を自動算出
+            ③ 実績から変動率/固定費を自動算出
           </button>
           <a href={`https://docs.google.com/spreadsheets/d/12Jo2w0pjKi_cUongNdmtzFS0sHbuZDAhWnBSAKxgxBo/edit`}
              target="_blank" rel="noreferrer"
              className="text-xs px-3 py-1.5 bg-gray-700 hover:bg-gray-600 text-gray-200 rounded-md">
-            シートを開く
+            元シートを開く
           </a>
         </div>
         {msg && <p className="text-xs text-gray-400 mt-1 whitespace-pre-wrap">{msg}</p>}
       </div>
+
+      {/* データソース（売上・コストの出処） */}
+      <DataSourceCard ds={data.dataSource} year={data.year} month={data.month} />
+
+      {/* 固定費の手入力（新卒入社など PL に反映したい固定費を有効開始月とともに登録） */}
+      <FixedCostEditor year={data.year} month={data.month} onSaved={refresh} />
 
       {/* 科目別 PL テーブル (subcategory 階層) */}
       <div className="bg-gray-800 rounded-xl p-4">
@@ -334,6 +355,311 @@ export default function PLForecastView() {
       )}
     </div>
   )
+}
+
+// ─── データソースカード ──────────────────────────────────
+function DataSourceCard({ ds, year, month }: { ds: DataSource; year: number; month: number }) {
+  const fmtTs = (s: string | null) => {
+    if (!s) return '—'
+    // "2026-04-28T20:45:12" → "04/28 20:45"
+    const m = s.match(/^(\d{4})-(\d{2})-(\d{2})[T ](\d{2}):(\d{2})/)
+    if (!m) return s
+    return `${m[2]}/${m[3]} ${m[4]}:${m[5]}`
+  }
+  const revenueSourceLabel = ds.revenueSource === 'pl_actual' ? 'PL確定値（シート取込）' : '売上速報スクレイプの予測値'
+  const sourceColor = ds.revenueSource === 'pl_actual' ? 'text-green-400' : 'text-yellow-400'
+  return (
+    <div className="bg-gray-800 rounded-xl p-4 space-y-2 border border-gray-700/50">
+      <div className="flex items-center justify-between flex-wrap gap-2">
+        <h2 className="text-sm font-medium text-gray-300">データソース（{year}年{month}月）</h2>
+        <span className={`text-[10px] px-2 py-0.5 rounded bg-gray-900/60 ${sourceColor}`}>
+          売上 = {revenueSourceLabel}
+        </span>
+      </div>
+      <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 text-[11px]">
+        <div className="bg-gray-900/40 rounded p-2">
+          <div className="text-gray-500">売上速報スクレイプ</div>
+          <div className="text-gray-200 font-medium">{fmtTs(ds.lastScrapeAt)}</div>
+          <div className="text-gray-500 text-[10px]">
+            当月取込日数: {ds.scrapedDaysOfMonth ?? '—'}日
+          </div>
+        </div>
+        <div className="bg-gray-900/40 rounded p-2">
+          <div className="text-gray-500">PL（Googleシート）</div>
+          <div className="text-gray-200 font-medium">{fmtTs(ds.plImport.lastImportedAt)}</div>
+          <div className="text-gray-500 text-[10px]">
+            当月: {ds.plImport.rowCount}行 / {ds.plImport.costAccountCount}科目
+            {ds.plImport.hasRevenue ? ' / 売上◎' : ' / 売上空欄'}
+          </div>
+        </div>
+        <div className="bg-gray-900/40 rounded p-2">
+          <div className="text-gray-500">手動上書き（当月）</div>
+          <div className="text-gray-200 font-medium">
+            固定費 {ds.overrides.fixedCostCount}件 / 変動率 {ds.overrides.variableRateCount}件
+          </div>
+          <div className="text-gray-500 text-[10px]">下のフォームで追加可能</div>
+        </div>
+      </div>
+      {ds.revenueSource === 'sales_forecast' && (
+        <p className="text-[10px] text-yellow-400/80 leading-relaxed">
+          ⚠ 当月のシート売上が空欄のため、売上は <strong>売上速報スクレイプの着地予測</strong> を使用しています。
+          画面の数字が動かない場合は <strong>「① Googleシートから実績PLを取込」</strong> を再実行するか、
+          売上速報のスクレイプ最終時刻が古くないかを確認してください。
+        </p>
+      )}
+    </div>
+  )
+}
+
+// ─── 固定費の手入力 ──────────────────────────────────────
+type FixedCostAccount = { code: string; name: string; category: string; subcategory: string | null }
+type FixedCostRow = {
+  account_code: string; store: string | null
+  valid_from: string; valid_to: string | null
+  amount: number; note: string | null
+}
+
+type ExtractCandidate = {
+  amount: number
+  expression: string
+  snippet: string
+  suggestedAccountCode: string | null
+  confidence: 'high' | 'medium' | 'low'
+  reason: string
+}
+type ExtractedPage = {
+  pageId: string; title: string; url: string; lastEdited: string
+  candidates: ExtractCandidate[]
+}
+
+function FixedCostEditor({ year, month, onSaved }: { year: number; month: number; onSaved: () => Promise<void> | void }) {
+  const [accounts, setAccounts] = useState<FixedCostAccount[]>([])
+  const [active, setActive] = useState<FixedCostRow[]>([])
+  const [accountCode, setAccountCode] = useState<string>('')
+  const [validFrom, setValidFrom] = useState<string>(`${year}-${String(month).padStart(2, '0')}`)
+  const [validTo, setValidTo] = useState<string>('')
+  const [amount, setAmount] = useState<string>('')
+  const [note, setNote] = useState<string>('')
+  const [busy, setBusy] = useState(false)
+  const [msg, setMsg] = useState<string | null>(null)
+  const [extractBusy, setExtractBusy] = useState(false)
+  const [extractMsg, setExtractMsg] = useState<string | null>(null)
+  const [extractedPages, setExtractedPages] = useState<ExtractedPage[]>([])
+
+  const fetchData = useCallback(async () => {
+    const res = await fetch(`/api/pl-fixed-cost?year=${year}&month=${month}`, { cache: 'no-store' })
+    const j = await res.json()
+    setAccounts(j.accounts ?? [])
+    setActive(j.fixedCosts ?? [])
+    if (!accountCode && j.accounts?.length > 0) {
+      const def = j.accounts.find((a: FixedCostAccount) => a.code === 'cogs_salon_salary') ?? j.accounts[0]
+      setAccountCode(def.code)
+    }
+  }, [year, month, accountCode])
+
+  useEffect(() => { fetchData() }, [fetchData])
+
+  const submit = async (e: React.FormEvent) => {
+    e.preventDefault()
+    const amt = parseFloat(amount.replace(/[,¥\s]/g, ''))
+    if (!Number.isFinite(amt)) { setMsg('金額を入力してください'); return }
+    if (!accountCode || !validFrom) { setMsg('科目と有効開始月を入力してください'); return }
+    setBusy(true); setMsg(null)
+    try {
+      const res = await fetch('/api/pl-fixed-cost', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          accountCode, amount: amt, validFrom,
+          validTo: validTo || null,
+          note: note || null,
+        }),
+      })
+      const j = await res.json()
+      if (!res.ok || !j.ok) {
+        setMsg(`保存失敗: ${j.error ?? res.statusText}`)
+      } else {
+        setMsg('保存しました')
+        setAmount(''); setNote('')
+        await fetchData()
+        await onSaved()
+      }
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  const runExtract = async () => {
+    setExtractBusy(true); setExtractMsg(null)
+    try {
+      const res = await fetch('/api/pl-extract-from-minutes', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ daysBack: 90, maxPages: 12 }),
+      })
+      const j = await res.json()
+      if (!res.ok || !j.ok) {
+        setExtractMsg(`抽出失敗: ${j.error ?? res.statusText}`)
+        setExtractedPages([])
+      } else {
+        setExtractedPages(j.pages ?? [])
+        setExtractMsg(`${j.pagesScanned}件のページから ${j.totalCandidates}件の候補を抽出（直近${j.daysBack}日）`)
+      }
+    } catch (e) {
+      setExtractMsg(`通信エラー: ${e instanceof Error ? e.message : String(e)}`)
+    } finally {
+      setExtractBusy(false)
+    }
+  }
+
+  const useCandidate = (page: ExtractedPage, c: ExtractCandidate) => {
+    if (c.suggestedAccountCode) setAccountCode(c.suggestedAccountCode)
+    setAmount(String(c.amount))
+    setNote(`Notion議事録「${page.title}」より: ${c.expression}`)
+    setMsg('候補をフォームに反映しました（保存ボタンで確定）')
+  }
+
+  const accountByCode = new Map(accounts.map(a => [a.code, a]))
+  return (
+    <div className="bg-gray-800 rounded-xl p-4 space-y-3">
+      <div>
+        <h2 className="text-sm font-medium text-gray-300">固定費の手入力（新卒入社・人件費見直し等）</h2>
+        <p className="text-[11px] text-gray-500 leading-relaxed mt-1">
+          科目を選んで「有効開始月」とともに登録すると、その月以降のPL予測に反映されます。
+          終了月は空欄でOK（無期限）。例: アシスタント給与（22万 × 19人 = 418万）は <code>【原】給与手当(サロン社員)</code>、
+          法定福利費（社会保険料）は <code>【原】法定福利費</code> に分けて登録。
+        </p>
+      </div>
+
+      {/* 議事録（Notion）からの候補抽出 */}
+      <div className="bg-gray-900/40 rounded-lg p-3 space-y-2 border border-gray-700/50">
+        <div className="flex items-center justify-between flex-wrap gap-2">
+          <div className="text-[11px] text-gray-400">
+            <span className="text-gray-300 font-medium">📝 Notion議事録から候補抽出</span>
+            <span className="text-gray-500 ml-2">直近90日のHD/サロン役員会議事録を検索 → 「給与」「人件費」「正社員」周辺の金額を抽出</span>
+          </div>
+          <button onClick={runExtract} disabled={extractBusy}
+                  className="text-[11px] px-3 py-1.5 bg-indigo-600 hover:bg-indigo-500 disabled:bg-gray-700 text-white rounded-md whitespace-nowrap">
+            {extractBusy ? '抽出中…' : '議事録から抽出'}
+          </button>
+        </div>
+        {extractMsg && <p className="text-[10px] text-gray-400">{extractMsg}</p>}
+        {extractedPages.length > 0 && (
+          <div className="space-y-2 max-h-80 overflow-y-auto pr-1">
+            {extractedPages.map(page => (
+              <div key={page.pageId} className="bg-gray-800/60 rounded p-2">
+                <div className="text-[11px] text-gray-300 font-medium truncate">
+                  <a href={page.url} target="_blank" rel="noreferrer" className="hover:text-blue-400">
+                    {page.title}
+                  </a>
+                  <span className="text-gray-600 ml-2 text-[10px]">{page.lastEdited.slice(0, 10)}</span>
+                </div>
+                <div className="space-y-1 mt-1">
+                  {page.candidates.map((c, i) => (
+                    <div key={i} className="bg-gray-900/60 rounded px-2 py-1.5">
+                      <div className="flex items-center justify-between gap-2 flex-wrap">
+                        <div className="flex items-center gap-2 min-w-0">
+                          <span className={`text-[9px] px-1 py-0.5 rounded ${
+                            c.confidence === 'high' ? 'bg-green-900/60 text-green-300'
+                            : c.confidence === 'medium' ? 'bg-yellow-900/60 text-yellow-300'
+                            : 'bg-gray-700 text-gray-400'
+                          }`}>
+                            {c.confidence === 'high' ? '高' : c.confidence === 'medium' ? '中' : '低'}
+                          </span>
+                          <span className="text-[11px] text-gray-200 font-medium">¥{c.amount.toLocaleString()}</span>
+                          <span className="text-[10px] text-gray-500 truncate">{c.expression}</span>
+                          {c.suggestedAccountCode && (
+                            <span className="text-[9px] text-blue-300/80">→ {accountByCode.get(c.suggestedAccountCode)?.name ?? c.suggestedAccountCode}</span>
+                          )}
+                        </div>
+                        <button onClick={() => useCandidate(page, c)}
+                                className="text-[10px] px-2 py-0.5 bg-emerald-700/60 hover:bg-emerald-600 text-emerald-100 rounded">
+                          採用 →フォームへ
+                        </button>
+                      </div>
+                      <p className="text-[10px] text-gray-500 mt-0.5">
+                        <span className="text-gray-600">…</span>{c.snippet}<span className="text-gray-600">…</span>
+                      </p>
+                      <p className="text-[9px] text-gray-600 mt-0.5">{c.reason}</p>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+
+      <form onSubmit={submit} className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+        <label className="flex flex-col text-[11px] text-gray-400 gap-0.5">
+          <span>科目</span>
+          <select value={accountCode} onChange={e => setAccountCode(e.target.value)}
+                  className="bg-gray-900 text-gray-100 text-xs rounded px-2 py-1.5 border border-gray-700">
+            {accounts.map(a => (
+              <option key={a.code} value={a.code}>
+                [{a.category === 'cogs' ? '原価' : '販管'}/{subcatLabel(a.subcategory)}] {a.name}
+              </option>
+            ))}
+          </select>
+        </label>
+        <label className="flex flex-col text-[11px] text-gray-400 gap-0.5">
+          <span>金額（月額・円）</span>
+          <input value={amount} onChange={e => setAmount(e.target.value)} placeholder="例: 4180000"
+                 inputMode="numeric"
+                 className="bg-gray-900 text-gray-100 text-xs rounded px-2 py-1.5 border border-gray-700" />
+        </label>
+        <label className="flex flex-col text-[11px] text-gray-400 gap-0.5">
+          <span>有効開始月（YYYY-MM）</span>
+          <input value={validFrom} onChange={e => setValidFrom(e.target.value)} placeholder="2026-04"
+                 className="bg-gray-900 text-gray-100 text-xs rounded px-2 py-1.5 border border-gray-700" />
+        </label>
+        <label className="flex flex-col text-[11px] text-gray-400 gap-0.5">
+          <span>有効終了月（任意・空欄で無期限）</span>
+          <input value={validTo} onChange={e => setValidTo(e.target.value)} placeholder="2027-03"
+                 className="bg-gray-900 text-gray-100 text-xs rounded px-2 py-1.5 border border-gray-700" />
+        </label>
+        <label className="flex flex-col text-[11px] text-gray-400 gap-0.5 sm:col-span-2">
+          <span>メモ（任意）</span>
+          <input value={note} onChange={e => setNote(e.target.value)} placeholder="例: 4月新卒19名 22万×19=418万"
+                 className="bg-gray-900 text-gray-100 text-xs rounded px-2 py-1.5 border border-gray-700" />
+        </label>
+        <div className="sm:col-span-2 flex items-center gap-2">
+          <button type="submit" disabled={busy}
+                  className="text-xs px-3 py-1.5 bg-emerald-600 hover:bg-emerald-500 disabled:bg-gray-700 text-white rounded-md">
+            保存
+          </button>
+          {msg && <span className="text-[11px] text-gray-400">{msg}</span>}
+        </div>
+      </form>
+
+      {/* 当月有効な手入力固定費の一覧 */}
+      {active.length > 0 && (
+        <div className="border-t border-gray-700/50 pt-2">
+          <p className="text-[11px] text-gray-500 mb-1">当月有効の手入力固定費（{active.length}件）</p>
+          <div className="space-y-1">
+            {active.map((f, i) => {
+              const acc = accountByCode.get(f.account_code)
+              return (
+                <div key={i} className="flex items-center justify-between text-[11px] bg-gray-900/40 rounded px-2 py-1">
+                  <div className="min-w-0 flex-1 truncate">
+                    <span className="text-gray-300">{acc?.name ?? f.account_code}</span>
+                    <span className="text-gray-500 ml-2">{f.valid_from} 〜 {f.valid_to ?? '無期限'}</span>
+                    {f.note && <span className="text-gray-600 ml-2">／ {f.note}</span>}
+                  </div>
+                  <span className="text-gray-200 font-medium ml-2">¥{f.amount.toLocaleString()}</span>
+                </div>
+              )
+            })}
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
+
+function subcatLabel(s: string | null): string {
+  if (!s) return '—'
+  return ({ material: '材料', personnel: '人件費', promo: '広告', rent: '家賃', utility: '水光', other: 'その他', revenue: '売上', income: '収益', expense: '費用' } as Record<string, string>)[s] ?? s
 }
 
 function SubcatBlock({ label, lines, total }: { label: string; lines: PLLine[]; total: number }) {

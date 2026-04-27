@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server'
-import { getScrapedDailySales, getTarget, getRecentCostActuals, savePLSnapshot, getCostAccounts } from '@/lib/db'
+import { getScrapedDailySales, getTarget, getRecentCostActuals, savePLSnapshot, getCostAccounts, getLastScrapeTime, getPLImportSummary, getFixedCosts, getVariableRates } from '@/lib/db'
 import { computeForecast } from '@/lib/forecastEngine'
 import { computePLForecast, buildActualPL } from '@/lib/plEngine'
 import { CUTOFF_HOUR, CUTOFF_MINUTE } from '@/lib/autoScrape'
@@ -101,6 +101,31 @@ export async function GET(req: Request) {
   const opMarginTargetPct = 5
   const opMarginPct = forecast.opMargin * 100
 
+  // ── データソース情報（画面で「7931万固定？」を見抜けるようにする） ──
+  const lastScrapeAt = getLastScrapeTime()
+  const plImport = getPLImportSummary(year, month)
+  const scrapedCount = isPastMonth ? null : getScrapedDailySales(year, month).length
+  const fixedCosts = getFixedCosts(year, month)
+  const variableRates = getVariableRates(year, month)
+  const dataSource = {
+    lastScrapeAt,                                // BMスクレイプ最終時刻（売上速報の鮮度）
+    scrapedDaysOfMonth: scrapedCount,            // 当月スクレイプ済み日数
+    plImport: {
+      rowCount: plImport.rowCount,                // cost_actuals_monthly に当月で何行あるか
+      hasRevenue: plImport.hasRevenue,            // 当月のシート確定売上があるか
+      costAccountCount: plImport.costAccountCount,// 当月のコスト科目数
+      lastImportedAt: plImport.lastImportedAt,    // PL取込最終時刻
+      source: plImport.source,                    // 'gsheet_confirmed' | 'gsheet_preview' | etc
+    },
+    revenueSource: isPastMonth
+      ? 'pl_actual'
+      : (plImport.hasRevenue ? 'pl_actual' : 'sales_forecast'),
+    overrides: {
+      fixedCostCount: fixedCosts.filter(f => f.store === null).length,
+      variableRateCount: variableRates.filter(r => r.store === null).length,
+    },
+  }
+
   return NextResponse.json({
     year, month,
     todayIsoDate,
@@ -113,6 +138,7 @@ export async function GET(req: Request) {
       passed: opMarginPct >= opMarginTargetPct,
     },
     monthlyTarget: getTarget(year, month),
+    dataSource,
   })
 }
 

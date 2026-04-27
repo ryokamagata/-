@@ -1081,6 +1081,35 @@ export function getCostActuals(year: number, month: number): CostActual[] {
 }
 
 /** 過去N ヶ月の確定実績を month 昇順で返す */
+/** 当月の cost_actuals_monthly 取込状況サマリ（売上 / コスト科目数 / 最終取込日時） */
+export function getPLImportSummary(year: number, month: number): {
+  lastImportedAt: string | null
+  rowCount: number
+  hasRevenue: boolean
+  costAccountCount: number
+  source: string | null
+} {
+  const db = getDB()
+  const rows = db.prepare(
+    `SELECT account_code, store, source, imported_at FROM cost_actuals_monthly WHERE year=? AND month=?`
+  ).all(year, month) as { account_code: string; store: string; source: string; imported_at: string }[]
+  if (rows.length === 0) {
+    return { lastImportedAt: null, rowCount: 0, hasRevenue: false, costAccountCount: 0, source: null }
+  }
+  const lastImportedAt = rows
+    .map(r => r.imported_at)
+    .sort()
+    .at(-1) ?? null
+  const hasRevenue = rows.some(r => r.account_code === 'revenue')
+  const costAccountCount = new Set(rows.filter(r => r.account_code !== 'revenue').map(r => r.account_code)).size
+  // 最頻 source を返す（confirmed が混じれば confirmed 優先）
+  const sources = new Set(rows.map(r => r.source))
+  const source = sources.has('gsheet_confirmed') ? 'gsheet_confirmed'
+    : sources.has('gsheet_preview') ? 'gsheet_preview'
+    : [...sources][0] ?? null
+  return { lastImportedAt, rowCount: rows.length, hasRevenue, costAccountCount, source }
+}
+
 export function getRecentCostActuals(fromYear: number, fromMonth: number, toYear: number, toMonth: number): CostActual[] {
   const db = getDB()
   const rows = db.prepare(`
