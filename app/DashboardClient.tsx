@@ -26,6 +26,8 @@ export default function DashboardClient() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [mainTab, setMainTab] = useState<MainTab>('current')
+  // スクレイプ完了など「データ更新が起きた」シグナル。子コンポーネント(PL等)の再フェッチに使う
+  const [dataVersion, setDataVersion] = useState(0)
 
   const refresh = useCallback(async () => {
     try {
@@ -33,6 +35,7 @@ export default function DashboardClient() {
       if (!res.ok) throw new Error('データ取得に失敗しました')
       setData(await res.json())
       setError(null)
+      setDataVersion(v => v + 1)
     } catch (e) {
       setError(e instanceof Error ? e.message : 'エラーが発生しました')
     } finally {
@@ -141,7 +144,7 @@ export default function DashboardClient() {
       {mainTab === 'kpi' && <KpiView />}
 
       {/* 予測PLタブ */}
-      {mainTab === 'pl' && <PLForecastView />}
+      {mainTab === 'pl' && <PLForecastView dataVersion={dataVersion} />}
 
       {/* 今月ダッシュボード */}
       {mainTab === 'current' && <>

@@ -1,7 +1,6 @@
 'use client'
 
 import { useCallback, useEffect, useState } from 'react'
-import ScrapeButton from '@/components/ScrapeButton'
 
 type PLLine = {
   code: string
@@ -85,7 +84,7 @@ const SUBCAT_LABEL: Record<string, string> = {
   other: 'その他',
 }
 
-export default function PLForecastView() {
+export default function PLForecastView({ dataVersion = 0 }: { dataVersion?: number }) {
   const [data, setData] = useState<PLResponse | null>(null)
   const [loading, setLoading] = useState(true)
   const [err, setErr] = useState<string | null>(null)
@@ -107,7 +106,8 @@ export default function PLForecastView() {
     }
   }, [])
 
-  useEffect(() => { refresh() }, [refresh])
+  // mount 時 + dataVersion 変化時(=トップでスクレイプ完了など)に再フェッチ
+  useEffect(() => { refresh() }, [refresh, dataVersion])
 
   const callApi = useCallback(async (url: string, body: object, label: string) => {
     setBusy(true); setMsg(null)
@@ -255,31 +255,11 @@ export default function PLForecastView() {
           </a>
         </div>
         <p className="text-[11px] text-gray-500">
-          通常運用フロー: <span className="text-gray-300 font-medium">⓪ 当月売上を取込 → ① 過去月実績を取込 → ③ 自動算出</span>。<br/>
-          ⓪は「<span className="text-gray-300">{curY}年{curM}月</span>の売上速報」を、①は「<span className="text-gray-300">〜{prev.year}年{prev.month}月の確定値</span>」を取り込みます。
+          通常運用フロー: <span className="text-gray-300 font-medium">① 過去月実績を取込 → ③ 自動算出</span>。<br/>
+          <span className="text-gray-400">※ 当月（{curY}年{curM}月）の売上は「今月」タブの「BMから今すぐ取込」で更新すれば、予測PLの売上高にも自動で反映されます（同じ売上着地予測値を使用）。</span>
         </p>
 
         <div className="space-y-2">
-          {/* ⓪ 当月の売上速報スクレイプ */}
-          <div className="border border-emerald-700/40 bg-emerald-900/10 rounded-lg p-3 space-y-1.5">
-            <div className="flex items-start justify-between flex-wrap gap-2">
-              <div className="flex-1 min-w-0">
-                <ScrapeButton
-                  url="/api/scrape"
-                  label={`⓪ 現在のダッシュボードから取り込み（${curY}年${curM}月の売上速報）`}
-                  onDone={refresh}
-                />
-              </div>
-              <span className="text-[10px] text-emerald-300/80 px-2 py-0.5 bg-emerald-900/40 rounded shrink-0">当月の売上予測に必須</span>
-            </div>
-            <p className="text-[11px] text-gray-400 leading-relaxed">
-              <span className="text-gray-300">▶ 押すと:</span> ビューティメリットから当月({curY}年{curM}月)の日別売上を最新化し、<span className="text-gray-300">予測PLの売上高 = 売上速報の着地予測</span> として反映します。
-            </p>
-            <p className="text-[11px] text-gray-500">
-              <span className="text-gray-400">▶ 効果:</span> 当月の売上高・粗利・営業利益が、ダッシュボードの売上予測と同じ最新の数字になります（① はGoogleシート未掲載の当月分には影響しません）。
-            </p>
-          </div>
-
           {/* ① 過去月の確定PL */}
           <div className="border border-gray-700 rounded-lg p-3 space-y-1.5">
             <div className="flex items-start justify-between flex-wrap gap-2">
@@ -293,7 +273,7 @@ export default function PLForecastView() {
               <span className="text-gray-300">▶ 押すと:</span> 月次決算速報値シートを読み込み、<span className="text-gray-300">過去月</span>の科目×店舗×月の金額を実績データとして DB 保存します（<span className="text-gray-300">〜{prev.year}年{prev.month}月</span>を「確定」、それ以降を「速報」扱い）。
             </p>
             <p className="text-[11px] text-gray-500">
-              <span className="text-gray-400">▶ 効果:</span> 過去月の予測PLが実績値で上書きされ、「実績」バッジ付きで表示されるようになります。<span className="text-gray-400">当月({curY}年{curM}月)の売上には影響しません — そちらは⓪を使ってください。</span>
+              <span className="text-gray-400">▶ 効果:</span> 過去月の予測PLが実績値で上書きされ、「実績」バッジ付きで表示されるようになります。<span className="text-gray-400">当月の売上には影響しません（こちらは「今月」タブのスクレイプで自動更新）。</span>
             </p>
           </div>
 

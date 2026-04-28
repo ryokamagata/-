@@ -110,3 +110,89 @@ export function computeForecast(
     weekendActualDays,
   }
 }
+
+/**
+ * ダッシュボードの「着地予測」と同じ標準予測値を算出する共有関数。
+ * /api/sales と /api/pl-forecast の両方で同一の数字を出すために使う。
+ *
+ * 入力:
+ *   - forecast: computeForecast の結果
+ *   - prevYearSales: 前年同月の売上実績（無ければ null）
+ *   - avgYoYRate: 当年既完了月の平均YoY成長率（無ければ null。例: 0.05 → +5%）
+ *   - totalRevenueCap: 全店舗席数ベースの月間売上上限
+ */
+export interface StandardForecast {
+  standard: number
+  conservative: number
+  optimistic: number
+  paceEstimate: number
+  yoyEstimate: number | null
+  paceWeight: number
+}
+
+export function computeStandardForecast(
+  forecast: ForecastResult,
+  prevYearSales: number | null,
+  avgYoYRate: number | null,
+  totalRevenueCap: number
+): StandardForecast {
+  const paceEstimate = forecast.forecastTotal
+
+  let yoyEstimate: number | null = null
+  if (prevYearSales !== null && prevYearSales > 0) {
+    yoyEstimate =
+      avgYoYRate !== null
+        ? Math.round(prevYearSales * (1 + avgYoYRate))
+        : prevYearSales
+  }
+
+  // 当月実績があればペース100%、無ければYoY100%にフォールバック
+  const hasActualData = forecast.weekdayActualDays + forecast.weekendActualDays > 0
+  const paceWeight = hasActualData ? 1.0 : 0.0
+
+  let standard: number
+  if (yoyEstimate !== null && yoyEstimate > 0) {
+    standard = Math.round(paceEstimate * paceWeight + yoyEstimate * (1 - paceWeight))
+  } else {
+    standard = paceEstimate
+  }
+  standard = Math.min(standard, totalRevenueCap)
+
+  const conservative = Math.round(standard * 0.95)
+
+  let optimistic: number
+  if (yoyEstimate !== null && yoyEstimate > 0) {
+    optimistic = Math.round(Math.max(paceEstimate, yoyEstimate) * 1.03)
+  } else {
+    optimistic = Math.round(standard * 1.05)
+  }
+  optimistic = Math.min(optimistic, totalRevenueCap)
+
+  return { standard, conservative, optimistic, paceEstimate, yoyEstimate, paceWeight }
+}
+
+/**
+ * 当年既完了月（1月〜先月）の平均YoY成長率を算出。
+ * monthlyTotalSales: { month: "YYYY-MM", sales: number } の配列で、
+ * 当年と前年の12ヶ月分が入っている前提。
+ */
+export function computeAverageYoYRate(
+  year: number,
+  upToMonthExclusive: number,
+  currentYearMonthly: { month: string; sales: number }[],
+  prevYearMonthly: { month: string; sales: number }[]
+): number | null {
+  if (upToMonthExclusive <= 1) return null
+  const yoyRates: number[] = []
+  for (let mo = 1; mo < upToMonthExclusive; mo++) {
+    const currKey = `${year}-${String(mo).padStart(2, '0')}`
+    const prevKey = `${year - 1}-${String(mo).padStart(2, '0')}`
+    const curr = currentYearMonthly.find((m) => m.month === currKey)
+    const prev = prevYearMonthly.find((m) => m.month === prevKey)
+    if (curr && prev && prev.sales > 0) {
+      yoyRates.push((curr.sales - prev.sales) / prev.sales)
+    }
+  }
+  if (yoyRates.length === 0) return null
+  return yoyRates.reduce((a, b) => a + b, 0) / yoyRates.length
+}
