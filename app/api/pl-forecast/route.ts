@@ -1,8 +1,9 @@
 import { NextResponse } from 'next/server'
-import { getScrapedDailySales, getTarget, getRecentCostActuals, savePLSnapshot, getCostAccounts, getLastScrapeTime, getPLImportSummary, getFixedCosts, getVariableRates } from '@/lib/db'
-import { computeForecast } from '@/lib/forecastEngine'
+import { getScrapedDailySales, getTarget, getRecentCostActuals, savePLSnapshot, getCostAccounts, getLastScrapeTime, getPLImportSummary, getFixedCosts, getVariableRates, getMonthlyTotalSales } from '@/lib/db'
+import { computeForecast, computeStandardForecast, computeAverageYoYRate } from '@/lib/forecastEngine'
 import { computePLForecast, buildActualPL } from '@/lib/plEngine'
 import { CUTOFF_HOUR, CUTOFF_MINUTE } from '@/lib/autoScrape'
+import { STORES, MAX_REVENUE_PER_SEAT, isClosedStore } from '@/lib/stores'
 import type { DailySales } from '@/lib/types'
 
 export const dynamic = 'force-dynamic'
@@ -50,8 +51,20 @@ export async function GET(req: Request) {
       staff: {},
     }))
     const fc = computeForecast(dailySales, year, month, today)
-    revenueHint = fc.forecastTotal
     salesConfidence = fc.confidence
+
+    // ── ダッシュボードの「着地予測」と完全一致させる ──
+    // /api/sales と同じ計算式（ペース×weight + YoY×(1-weight)、席数キャップ）を使う
+    const prevYearMonthly = getMonthlyTotalSales(year - 1, month, year - 1, month)
+    const prevYearSales = prevYearMonthly.length > 0 ? prevYearMonthly[0].sales : null
+    const currentYearMonthly = month > 1 ? getMonthlyTotalSales(year, 1, year, month - 1) : []
+    const prevYearAllMonths = month > 1 ? getMonthlyTotalSales(year - 1, 1, year - 1, 12) : []
+    const avgYoYRate = computeAverageYoYRate(year, month, currentYearMonthly, prevYearAllMonths)
+    const totalRevenueCap = STORES
+      .filter(s => !isClosedStore(s.name))
+      .reduce((sum, s) => sum + s.seats * MAX_REVENUE_PER_SEAT, 0)
+    const std = computeStandardForecast(fc, prevYearSales, avgYoYRate, totalRevenueCap)
+    revenueHint = std.standard
   }
 
   const forecast = isPastMonth

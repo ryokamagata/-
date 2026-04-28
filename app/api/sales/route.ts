@@ -12,7 +12,7 @@ import {
   getMonthlyTotalSales,
   getStaffSalesForMonth,
 } from '@/lib/db'
-import { computeForecast } from '@/lib/forecastEngine'
+import { computeForecast, computeStandardForecast, computeAverageYoYRate } from '@/lib/forecastEngine'
 import { STORES, MAX_REVENUE_PER_SEAT, isClosedStore } from '@/lib/stores'
 import { mergeStaffSales, normalizeStaffName } from '@/lib/staffNormalize'
 import { CUTOFF_HOUR, CUTOFF_MINUTE } from '@/lib/autoScrape'
@@ -219,87 +219,35 @@ export async function GET() {
     : '0'
 
   // ── 着地予測詳細（3パターン + 根拠）──────────────────────────────────────
+  // /api/pl-forecast と同じ共有関数 computeStandardForecast を使う（数字を完全一致させるため）
   let forecastDetail: ForecastDetail | null = null
   {
     const effectiveDaysForForecast = Math.max(today, 1)
     const dailyAvg = effectiveDaysForForecast > 0 ? forecast.actualTotal / effectiveDaysForForecast : 0
     const monthProgressRate = effectiveDaysForForecast / daysInMonth
-    // 平日/土日祝を分けて算出したペース着地（forecastEngineで計算済み）
-    const simplePaceEstimate = forecast.forecastTotal
 
-    // 前年同月データ取得
     const prevYearMonthly = getMonthlyTotalSales(year - 1, month, year - 1, month)
     const prevYearSales = prevYearMonthly.length > 0 ? prevYearMonthly[0].sales : null
+    const currentYearMonthly = month > 1 ? getMonthlyTotalSales(year, 1, year, month - 1) : []
+    const prevYearAllMonths = month > 1 ? getMonthlyTotalSales(year - 1, 1, year - 1, 12) : []
+    const avgYoYRate = computeAverageYoYRate(year, month, currentYearMonthly, prevYearAllMonths)
 
-    // 完了月の前年比を計算（今年1月〜先月 vs 去年同月）
-    let avgYoYRate: number | null = null
-    if (month > 1) {
-      const currentYearMonthly = getMonthlyTotalSales(year, 1, year, month - 1)
-      const prevYearAllMonths = getMonthlyTotalSales(year - 1, 1, year - 1, 12)
-
-      const yoyRates: number[] = []
-      for (let mo = 1; mo < month; mo++) {
-        const currKey = `${year}-${String(mo).padStart(2, '0')}`
-        const prevKey = `${year - 1}-${String(mo).padStart(2, '0')}`
-        const curr = currentYearMonthly.find(m => m.month === currKey)
-        const prev = prevYearAllMonths.find(m => m.month === prevKey)
-        if (curr && prev && prev.sales > 0) {
-          yoyRates.push((curr.sales - prev.sales) / prev.sales)
-        }
-      }
-      if (yoyRates.length > 0) {
-        avgYoYRate = yoyRates.reduce((a, b) => a + b, 0) / yoyRates.length
-      }
-    }
-
-    // YoY予測（前年同月 × (1 + 平均成長率)）
-    let yoyEstimate: number | null = null
-    if (prevYearSales !== null && prevYearSales > 0) {
-      yoyEstimate = avgYoYRate !== null
-        ? Math.round(prevYearSales * (1 + avgYoYRate))
-        : prevYearSales
-    }
-
-    // ブレンド比率: 当月データがあればペース100%、無い時のみYoY100%にフォールバック
-    const hasActualData = forecast.weekdayActualDays + forecast.weekendActualDays > 0
-    const paceWeight = hasActualData ? 1.0 : 0.0
-
-    // 全店舗合計の売上上限（席数ベース）
     const totalRevenueCap = STORES
       .filter(s => !isClosedStore(s.name))
       .reduce((sum, s) => sum + s.seats * MAX_REVENUE_PER_SEAT, 0)
 
-    // 標準予測（日割りペース × YoY のブレンド）、席数上限でキャップ
-    let standard: number
-    if (yoyEstimate !== null && yoyEstimate > 0) {
-      standard = Math.round(simplePaceEstimate * paceWeight + yoyEstimate * (1 - paceWeight))
-    } else {
-      standard = simplePaceEstimate
-    }
-    standard = Math.min(standard, totalRevenueCap)
-
-    // 堅実予測 = 標準の95%（安定した予測幅）
-    const conservative = Math.round(standard * 0.95)
-
-    // 高め見込み = max(ペース着地, YoY着地) の103%、または標準の105%、席数上限でキャップ
-    let optimistic: number
-    if (yoyEstimate !== null && yoyEstimate > 0) {
-      optimistic = Math.round(Math.max(simplePaceEstimate, yoyEstimate) * 1.03)
-    } else {
-      optimistic = Math.round(standard * 1.05)
-    }
-    optimistic = Math.min(optimistic, totalRevenueCap)
+    const std = computeStandardForecast(forecast, prevYearSales, avgYoYRate, totalRevenueCap)
 
     forecastDetail = {
-      standard,
-      conservative,
-      optimistic,
+      standard: std.standard,
+      conservative: std.conservative,
+      optimistic: std.optimistic,
       rationale: {
-        paceEstimate: simplePaceEstimate,
-        yoyEstimate,
+        paceEstimate: std.paceEstimate,
+        yoyEstimate: std.yoyEstimate,
         prevYearSales,
         yoyGrowthRate: avgYoYRate !== null ? avgYoYRate * 100 : null,
-        paceWeight,
+        paceWeight: std.paceWeight,
         dailyAvg: Math.round(dailyAvg),
         monthProgress: monthProgressRate,
         weekdayAvg: forecast.weekdayAverage,
